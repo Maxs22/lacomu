@@ -22,6 +22,12 @@ export async function checkDonationRateLimit(ip: string | null) {
 
   const admin = createAdminClient();
 
+  // No hay cron en el MVP. Limpiamos una muestra pequeña de requests para
+  // que las ventanas viejas no acumulen filas sin sumar infraestructura.
+  if (Math.random() < 0.01) {
+    await admin.rpc("prune_rate_limit_buckets");
+  }
+
   const { data, error } = await admin.rpc("bump_rate_limit", {
     p_bucket_key: `donation:${ip}`,
     p_window_seconds: WINDOW_SECONDS,
