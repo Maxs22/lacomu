@@ -63,7 +63,7 @@ export function DonateForm({ campaignId }: { campaignId: string }) {
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
           placeholder="5000"
-          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus:border-primary"
+          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
         />
       </label>
 
@@ -75,7 +75,7 @@ export function DonateForm({ campaignId }: { campaignId: string }) {
             value={donorDisplayName}
             onChange={(e) => setDonorDisplayName(e.target.value)}
             placeholder="Cómo querés que te vean"
-            className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus:border-primary"
+            className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
           />
         </label>
       ) : null}
@@ -93,12 +93,16 @@ export function DonateForm({ campaignId }: { campaignId: string }) {
       <button
         type="submit"
         disabled={loading || !amount}
-        className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-7 py-4 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
+        className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-7 py-4 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
       >
         {loading ? "Redirigiendo a Mercado Pago…" : "Quiero ayudar"}
       </button>
 
-      {error ? <p className="text-sm text-primary">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-primary">
+          {error}
+        </p>
+      ) : null}
     </form>
   );
 }

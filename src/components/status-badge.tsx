@@ -1,3 +1,10 @@
+/**
+ * Con autopublicación (ver AGENTS.md) toda solicitud nace 'approved' y se
+ * publica en el mismo insert. Los otros estados quedan en el schema como
+ * deuda reservada para una eventual moderación posterior, pero hoy no se
+ * producen — se mapean con copy honesto por si aparecen, sin inventar un
+ * flujo de revisión que no existe.
+ */
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-border/60 text-muted",
   approved: "bg-secondary/15 text-secondary",
@@ -5,9 +12,9 @@ const STATUS_STYLES: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: "En revisión",
+  pending: "Procesando",
   approved: "Publicada",
-  rejected: "Rechazada",
+  rejected: "Dada de baja",
 };
 
 export function StatusBadge({ status }: { status: string }) {

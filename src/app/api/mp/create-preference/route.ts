@@ -9,27 +9,53 @@ import {
   getCanonicalOrigin,
   MpApiError,
 } from "@/lib/mercadopago";
+import { checkDonationRateLimit, getClientIp } from "@/lib/rate-limit";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
- * UPDATE atómico: solo un request puede ganar la transición de NULL a
- * "ahora" para una contribution dada. Esto es lo que serializa la llamada
- * externa a createPreference — el unique de idempotency_key ya evitaba
- * duplicar la FILA local, pero no evitaba que dos requests concurrentes
- * que resolvían a la MISMA fila le pegaran a MP los dos.
+ * Un claim se considera vencido pasado este tiempo: si el request que lo
+ * tomó se murió a mitad de camino (timeout de la función, deploy, error
+ * no manejado), otro puede retomarlo. Sin esto, un claim colgado dejaba
+ * la donación trabada en 409 para siempre.
+ */
+const CLAIM_TTL_MS = 2 * 60 * 1000;
+
+/**
+ * UPDATE atómico: solo un request puede ganar el claim para una
+ * contribution dada. Esto es lo que serializa la llamada externa a
+ * createPreference — el unique de idempotency_key ya evitaba duplicar la
+ * FILA local, pero no evitaba que dos requests concurrentes que resolvían
+ * a la MISMA fila le pegaran a MP los dos.
+ *
+ * Gana quien logre pasar el campo de NULL a "ahora", o quien encuentre un
+ * claim ya vencido (`.or()` cubre los dos casos en una sola sentencia
+ * atómica — importante que sea una sola, si se chequea y después se
+ * escribe vuelve a haber carrera).
  */
 async function claimPreferenceCreation(admin: AdminClient, contributionId: string) {
+  const staleBefore = new Date(Date.now() - CLAIM_TTL_MS).toISOString();
+
   const { data } = await admin
     .from("contributions")
     .update({ mp_preference_claim_started_at: new Date().toISOString() })
     .eq("id", contributionId)
-    .is("mp_preference_claim_started_at", null)
+    .or(
+      `mp_preference_claim_started_at.is.null,mp_preference_claim_started_at.lt.${staleBefore}`,
+    )
     .select("id")
     .maybeSingle();
   return Boolean(data);
+}
+
+/** Libera el claim para que un reintento inmediato no tenga que esperar el TTL. */
+async function releasePreferenceClaim(admin: AdminClient, contributionId: string) {
+  await admin
+    .from("contributions")
+    .update({ mp_preference_claim_started_at: null })
+    .eq("id", contributionId);
 }
 
 async function waitForInitPoint(admin: AdminClient, contributionId: string) {
@@ -159,6 +185,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Faltan datos." }, { status: 400 });
   }
 
+  const clientIp = getClientIp(request);
+  const rateLimit = await checkDonationRateLimit(clientIp);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Demasiados intentos. Esperá un rato y volvé a probar." },
+      { status: 429 },
+    );
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -214,6 +249,7 @@ export async function POST(request: Request) {
         currency: "ARS",
         status: "pending",
         idempotency_key: key,
+        client_ip: clientIp,
       })
       .select("id")
       .single();
@@ -359,6 +395,9 @@ export async function POST(request: Request) {
         "MP create-preference: no se pudo guardar la preference tras 3 intentos",
         { contributionId: contribution.id, preferenceId: preference.id, lastUpdateError },
       );
+      // No liberamos el claim acá a propósito: la preference SÍ existe en
+      // MP, y un reintento inmediato la va a recuperar por
+      // external_reference. Liberar invitaría a crear otra.
       return NextResponse.json(
         { error: "No se pudo guardar la preferencia." },
         { status: 500 },
@@ -367,6 +406,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ initPoint: preference.init_point });
   } catch {
+    // MP rechazó la creación: no quedó ninguna preference, así que es
+    // seguro (y necesario) liberar el claim para que el usuario pueda
+    // reintentar sin esperar el TTL.
+    await releasePreferenceClaim(admin, contribution.id);
     await admin
       .from("contributions")
       .update({ status: "failed" })

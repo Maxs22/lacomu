@@ -38,6 +38,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
+  // La firma de MP cubre el data.id del QUERY STRING. Si el body trae un
+  // id distinto, estaríamos validando una identidad y procesando otra —
+  // exigimos que coincidan antes de seguir.
+  if (bodyPaymentId && queryId && bodyPaymentId !== queryId) {
+    console.error("MP webhook: el id del body no coincide con el firmado en la query", {
+      bodyPaymentId,
+      queryId,
+    });
+    return NextResponse.json({ ok: true });
+  }
+
   const validSignature = isValidWebhookSignature({
     xSignature: request.headers.get("x-signature"),
     xRequestId: request.headers.get("x-request-id"),

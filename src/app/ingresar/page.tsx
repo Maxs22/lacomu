@@ -106,11 +106,11 @@ export default function IngresarPage() {
   const codeComplete = digits.every((d) => d !== "");
 
   return (
-    <div className="relative z-[1] flex min-h-screen flex-col items-center px-6 pt-10 pb-16 md:pt-16">
+    <main className="relative z-[1] flex min-h-screen flex-col items-center px-6 pt-10 pb-16 md:pt-16">
       <div className="w-full max-w-sm">
         <Link
           href="/"
-          className="mb-10 inline-flex items-center gap-1 text-sm text-muted hover:text-foreground"
+          className="mb-10 inline-flex items-center gap-1 rounded-sm text-sm text-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
         >
           ← lacomu
         </Link>
@@ -140,19 +140,27 @@ export default function IngresarPage() {
 
         {step === "email" ? (
           <form onSubmit={handleSendCode} className="mt-8 flex flex-col gap-4">
+            <label htmlFor="email" className="sr-only">
+              Tu email
+            </label>
             <input
+              id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               required
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="vos@ejemplo.com"
-              className="w-full rounded-sm border-2 border-border bg-background-card px-4 py-3.5 text-base text-foreground placeholder:text-muted/60 outline-none focus:border-primary"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "ingresar-error" : undefined}
+              className="w-full rounded-sm border-2 border-border bg-background-card px-4 py-3.5 text-base text-foreground placeholder:text-muted/60 outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
             />
             <button
               type="submit"
               disabled={loading || !email}
-              className="inline-flex items-center justify-center rounded-sm bg-primary px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
+              className="inline-flex items-center justify-center rounded-sm bg-primary px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
             >
               {loading ? "Enviando…" : "Mandarme el código"}
             </button>
@@ -162,28 +170,41 @@ export default function IngresarPage() {
             onSubmit={handleVerifyCode}
             className="mt-8 flex flex-col gap-6"
           >
-            <div className="flex gap-2">
-              {digits.map((digit, i) => (
-                <input
-                  key={i}
-                  ref={(el) => {
-                    inputsRef.current[i] = el;
-                  }}
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={1}
-                  value={digit}
-                  onChange={(e) => handleDigitChange(i, e.target.value)}
-                  onKeyDown={(e) => handleKeyDown(i, e)}
-                  onPaste={handlePaste}
-                  className="h-14 w-full rounded-sm border-2 border-border bg-background-card text-center font-display text-2xl text-foreground outline-none focus:border-primary"
-                />
-              ))}
-            </div>
+            <fieldset className="border-0 p-0">
+              <legend className="sr-only">
+                Código de {CODE_LENGTH} dígitos que te llegó por email
+              </legend>
+              <div className="flex gap-2">
+                {digits.map((digit, i) => (
+                  <div key={i} className="flex-1">
+                    <label htmlFor={`otp-${i}`} className="sr-only">
+                      Dígito {i + 1} de {CODE_LENGTH}
+                    </label>
+                    <input
+                      id={`otp-${i}`}
+                      ref={(el) => {
+                        inputsRef.current[i] = el;
+                      }}
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete={i === 0 ? "one-time-code" : "off"}
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleDigitChange(i, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(i, e)}
+                      onPaste={handlePaste}
+                      aria-invalid={error ? true : undefined}
+                      aria-describedby={error ? "ingresar-error" : undefined}
+                      className="h-14 w-full rounded-sm border-2 border-border bg-background-card text-center font-display text-2xl text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                    />
+                  </div>
+                ))}
+              </div>
+            </fieldset>
             <button
               type="submit"
               disabled={loading || !codeComplete}
-              className="inline-flex items-center justify-center rounded-sm bg-primary px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
+              className="inline-flex items-center justify-center rounded-sm bg-primary px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
             >
               {loading ? "Verificando…" : "Ingresar"}
             </button>
@@ -192,16 +213,21 @@ export default function IngresarPage() {
               onClick={() => {
                 setStep("email");
                 setDigits(Array(CODE_LENGTH).fill(""));
+                setError(null);
               }}
-              className="text-sm text-muted underline decoration-dotted underline-offset-4 hover:text-foreground"
+              className="rounded-sm text-sm text-muted underline decoration-dotted underline-offset-4 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               Usar otro email
             </button>
           </form>
         )}
 
-        {error ? <p className="mt-4 text-sm text-primary">{error}</p> : null}
+        {error ? (
+          <p id="ingresar-error" role="alert" className="mt-4 text-sm text-primary">
+            {error}
+          </p>
+        ) : null}
       </div>
-    </div>
+    </main>
   );
 }

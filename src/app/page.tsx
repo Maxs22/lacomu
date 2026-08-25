@@ -36,10 +36,13 @@ export default async function Home() {
         </span>
 
         {user ? (
-          <div className="flex items-center gap-4 text-sm text-muted">
+          <nav
+            aria-label="Tu cuenta"
+            className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm text-muted"
+          >
             <Link
               href="/mis-solicitudes"
-              className="hidden underline decoration-dotted underline-offset-4 hover:text-foreground sm:inline"
+              className="underline decoration-dotted underline-offset-4 hover:text-foreground"
             >
               Mis solicitudes
             </Link>
@@ -57,7 +60,7 @@ export default async function Home() {
                 Cerrar sesión
               </button>
             </form>
-          </div>
+          </nav>
         ) : null}
       </header>
 

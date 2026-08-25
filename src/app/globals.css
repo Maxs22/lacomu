@@ -6,7 +6,9 @@
   --foreground: #271d14;
   --muted: #5b4a37;
   --border: #e1d0ac;
-  --primary: #bb4a26;
+  /* 5.27:1 sobre --background y 5.98:1 sobre --background-card — AA para
+     texto normal. El #bb4a26 original daba 4.34:1, por debajo del mínimo. */
+  --primary: #a83f21;
   --primary-foreground: #fcf3e6;
   --secondary: #4f6142;
   --secondary-foreground: #fcf3e6;
@@ -30,6 +32,20 @@ body {
   background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Visible solo para lectores de pantalla (labels de los dígitos del OTP,
+   legends, etc.). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
 
 /* Grano sutil de papel — sin assets externos, solo un filtro SVG inline. */

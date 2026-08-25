@@ -17,12 +17,24 @@ const MP_API = "https://api.mercadopago.com";
  * El Host de un request no es de fiar para construir back_urls,
  * notification_url o redirect_uri — son URLs que determinan a dónde
  * vuelve el donante y a dónde le pega MP con la confirmación del pago.
- * Si está configurado NEXT_PUBLIC_APP_URL, se usa ese dominio canónico;
- * si no (todavía en dev sin configurarlo), cae al origin del request.
+ * Un Host manipulado podría derivar al donante a un dominio ajeno y
+ * cortar el webhook.
+ *
+ * En producción esto FALLA CERRADO si no está NEXT_PUBLIC_APP_URL: es
+ * preferible un error visible a mandar plata a URLs derivadas de un
+ * header que controla quien hace el request. El fallback al origin del
+ * request queda solo para desarrollo local.
  */
 export function getCanonicalOrigin(request: Request) {
   const configured = process.env.NEXT_PUBLIC_APP_URL;
   if (configured) return configured.replace(/\/$/, "");
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Falta NEXT_PUBLIC_APP_URL: no se puede derivar el origen de las URLs de Mercado Pago del Host del request en producción.",
+    );
+  }
+
   return new URL(request.url).origin;
 }
 

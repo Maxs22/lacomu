@@ -89,7 +89,7 @@ export function PedirAyudaForm({ userId }: { userId: string }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Ej: Necesito un taladro para volver a laburar"
-          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus:border-primary"
+          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
         />
       </label>
 
@@ -101,7 +101,7 @@ export function PedirAyudaForm({ userId }: { userId: string }) {
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="¿Qué te pasó? ¿Para qué necesitás la ayuda?"
-          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case leading-relaxed tracking-normal text-foreground outline-none focus:border-primary"
+          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case leading-relaxed tracking-normal text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
         />
       </label>
 
@@ -114,7 +114,7 @@ export function PedirAyudaForm({ userId }: { userId: string }) {
           value={goalAmount}
           onChange={(e) => setGoalAmount(e.target.value)}
           placeholder="180000"
-          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus:border-primary"
+          className="rounded-sm border-2 border-border bg-background-card px-4 py-3 text-base font-normal normal-case tracking-normal text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
         />
       </label>
 
@@ -131,7 +131,7 @@ export function PedirAyudaForm({ userId }: { userId: string }) {
       <button
         type="submit"
         disabled={saving || bannerUploading || !title || !description}
-        className="w-fit rounded-sm bg-primary px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
+        className="w-fit rounded-sm bg-primary px-6 py-3.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)] focus-visible:ring-2 focus-visible:ring-foreground focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none disabled:hover:translate-y-0"
       >
         {bannerUploading
           ? "Esperando la foto…"
@@ -140,7 +140,11 @@ export function PedirAyudaForm({ userId }: { userId: string }) {
             : "Publicar"}
       </button>
 
-      {error ? <p className="text-sm text-primary">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-primary">
+          {error}
+        </p>
+      ) : null}
     </form>
   );
 }
