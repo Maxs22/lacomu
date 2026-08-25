@@ -39,6 +39,16 @@ async function claimPreferenceCreation(admin: AdminClient, contributionId: strin
   const staleBefore = new Date(Date.now() - CLAIM_TTL_MS).toISOString();
   const token = crypto.randomUUID();
 
+  // Se lee el estado previo para saber si estamos tomando un claim libre
+  // o quitándole uno vencido a alguien que PUEDE seguir vivo. No sirve
+  // como chequeo de exclusión (para eso está el UPDATE atómico de abajo),
+  // solo para decidir si hace falta verificar contra MP antes de crear.
+  const { data: before } = await admin
+    .from("contributions")
+    .select("mp_preference_claim_started_at")
+    .eq("id", contributionId)
+    .maybeSingle();
+
   const { data } = await admin
     .from("contributions")
     .update({
@@ -49,23 +59,38 @@ async function claimPreferenceCreation(admin: AdminClient, contributionId: strin
     .or(
       `mp_preference_claim_started_at.is.null,mp_preference_claim_started_at.lt.${staleBefore}`,
     )
-    .select("id, mp_preference_claim_token")
+    .select("id")
     .maybeSingle();
 
   if (!data) return { won: false as const };
 
-  // Si el claim anterior no era NULL, se lo estamos quitando a alguien
-  // que puede seguir vivo (TTL vencido no prueba que murió). En ese caso
-  // hay que verificar contra MP antes de crear nada.
-  return { won: true as const, token };
+  return {
+    won: true as const,
+    token,
+    // Si había un claim previo, se lo quitamos a alguien que puede no
+    // haber muerto — el TTL no lo prueba.
+    tookOverStale: Boolean(before?.mp_preference_claim_started_at),
+  };
 }
 
-/** Libera el claim para que un reintento inmediato no tenga que esperar el TTL. */
-async function releasePreferenceClaim(admin: AdminClient, contributionId: string) {
-  await admin
+/**
+ * Libera el claim para que un reintento inmediato no tenga que esperar el
+ * TTL. Filtra por token a propósito: si nuestro claim ya venció y otro
+ * request lo retomó, liberar sin fencing borraría el claim DE ÉL y
+ * habilitaría a un tercero a llamar a MP en paralelo.
+ */
+async function releasePreferenceClaim(
+  admin: AdminClient,
+  contributionId: string,
+  token: string,
+) {
+  const { data } = await admin
     .from("contributions")
     .update({ mp_preference_claim_started_at: null, mp_preference_claim_token: null })
-    .eq("id", contributionId);
+    .eq("id", contributionId)
+    .eq("mp_preference_claim_token", token)
+    .select("id");
+  return Boolean(data && data.length > 0);
 }
 
 async function waitForInitPoint(admin: AdminClient, contributionId: string) {
@@ -342,12 +367,48 @@ export async function POST(request: Request) {
     );
   }
 
+  // Si le quitamos el claim a alguien por TTL vencido, ese alguien puede
+  // seguir vivo y haber creado (o estar creando) una preference. Antes de
+  // crear otra, le preguntamos a MP.
+  //
+  // Esto es lo que hace que la protección NO dependa del X-Idempotency-Key
+  // (que MP documenta para Payments/Orders, pero no explícitamente para
+  // Preferences — sin sandbox no podemos confirmar que lo respete acá).
+  // El header queda como capa extra, no como la garantía principal.
+  if (claim.tookOverStale) {
+    try {
+      const recovered = await findPreferenceByExternalReference(
+        contribution.id,
+        connection.access_token,
+      );
+      if (recovered) {
+        await admin
+          .from("contributions")
+          .update({ mp_preference_id: recovered.id, mp_init_point: recovered.init_point })
+          .eq("id", contribution.id)
+          .eq("mp_preference_claim_token", claim.token);
+        return NextResponse.json({ initPoint: recovered.init_point });
+      }
+    } catch (err) {
+      // No pudimos verificar si el proceso anterior ya creó una. Crear a
+      // ciegas es justo el duplicado que queremos evitar.
+      console.error(
+        "MP create-preference: claim retomado pero no se pudo verificar duplicados",
+        err,
+      );
+      await releasePreferenceClaim(admin, contribution.id, claim.token);
+      return NextResponse.json(
+        { error: "No se pudo verificar el estado del pago. Probá de nuevo en un momento." },
+        { status: 503 },
+      );
+    }
+  }
+
   let accessToken = connection.access_token;
 
   // Derivado de la contribution (no del claim, que cambia en cada
-  // retoma): si dos procesos llegaran a llamar igual — el TTL vencido no
-  // prueba que el primero murió — MP recibe la MISMA key y devuelve la
-  // misma preference en vez de crear dos.
+  // retoma): capa extra por si Preferences respeta el header — ver
+  // comentario de arriba sobre por qué no confiamos solo en esto.
   const mpIdempotencyKey = `lacomu-${contribution.id}`;
 
   try {
@@ -462,11 +523,21 @@ export async function POST(request: Request) {
     // MP rechazó la creación: no quedó ninguna preference, así que es
     // seguro (y necesario) liberar el claim para que el usuario pueda
     // reintentar sin esperar el TTL.
-    await releasePreferenceClaim(admin, contribution.id);
-    await admin
-      .from("contributions")
-      .update({ status: "failed" })
-      .eq("id", contribution.id);
+    //
+    // Todo fenceado por token: si mientras tanto nuestro claim venció y
+    // otro request lo retomó, no tenemos que tocar NADA — ni el claim (le
+    // pertenece a él) ni el status (él puede estar por dejarlo en un
+    // estado válido). Un release sin fencing acá borraba el claim ajeno.
+    const stillOurs = await releasePreferenceClaim(admin, contribution.id, claim.token);
+
+    if (stillOurs) {
+      await admin
+        .from("contributions")
+        .update({ status: "failed" })
+        .eq("id", contribution.id)
+        .eq("status", "pending");
+    }
+
     return NextResponse.json(
       { error: "Mercado Pago rechazó la preferencia." },
       { status: 502 },

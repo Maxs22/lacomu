@@ -1,42 +1,38 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
- * Rate limit contra la base, no en memoria: en Vercel cada request puede
- * caer en una instancia distinta, así que un Map en memoria no limita
- * nada real (esto ya mordió en otro proyecto — ver memoria de `late`).
+ * Rate limit atómico contra la base, no en memoria: en Vercel cada
+ * request puede caer en una instancia distinta, así que un Map en memoria
+ * no limita nada real.
  *
- * Cuenta cuántas contributions se crearon desde la misma IP en la ventana
- * y corta si se pasa. Deliberadamente permisivo: donar NO requiere login
- * (ver AGENTS.md), así que el límite tiene que dejar pasar el uso normal
- * (incluidos varios donantes detrás de un mismo NAT) y solo frenar
- * automatización obvia.
+ * Usa `bump_rate_limit` (INSERT ... ON CONFLICT DO UPDATE ... RETURNING),
+ * que incrementa y devuelve el valor en una sola operación — no hay
+ * ventana entre "contar" y "decidir" como sí la había en la versión que
+ * contaba filas y después insertaba.
+ *
+ * Deliberadamente permisivo: donar NO requiere login (ver AGENTS.md), así
+ * que el límite tiene que dejar pasar el uso normal (incluidos varios
+ * donantes detrás de un mismo NAT) y solo frenar automatización obvia.
  */
+const WINDOW_SECONDS = 60 * 60;
+const MAX_PER_WINDOW = 20;
+
 export async function checkDonationRateLimit(ip: string | null) {
   if (!ip) return { allowed: true as const };
 
   const admin = createAdminClient();
-  const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
-  // La IP vive en una tabla aparte sin policies de RLS — solo el service
-  // role la ve. No está en `contributions` a propósito: el dueño de la
-  // campaña puede leer sus contributions enteras y no necesita ese dato
-  // personal del donante.
-  const { count, error } = await admin
-    .from("contribution_client_ips")
-    .select("contribution_id", { count: "exact", head: true })
-    .eq("client_ip", ip)
-    .gte("created_at", windowStart);
+  const { data, error } = await admin.rpc("bump_rate_limit", {
+    p_bucket_key: `donation:${ip}`,
+    p_window_seconds: WINDOW_SECONDS,
+    p_limit: MAX_PER_WINDOW,
+  });
 
-  // Si no podemos contar, dejamos pasar: preferimos no bloquear una
+  // Si el rate limiter falla, dejamos pasar: preferimos no bloquear una
   // donación legítima por un problema nuestro de infraestructura.
   if (error) return { allowed: true as const };
 
-  const MAX_PER_HOUR = 20;
-  if ((count ?? 0) >= MAX_PER_HOUR) {
-    return { allowed: false as const };
-  }
-
-  return { allowed: true as const };
+  return { allowed: data !== false };
 }
 
 /** Extrae la IP del cliente de los headers que setea Vercel. */
