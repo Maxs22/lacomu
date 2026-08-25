@@ -12,7 +12,16 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 type Step = "email" | "code";
-const CODE_LENGTH = 6;
+/**
+ * Largo del OTP que manda Supabase. Verificado empíricamente contra este
+ * proyecto (`generateLink` devuelve email_otp de 8 dígitos), NO asumido:
+ * el default de 6 que teníamos acá antes hacía imposible completar el
+ * login, porque llegaba un código de 8 y la pantalla solo aceptaba 6.
+ *
+ * Es configurable en Supabase (Authentication → Settings → Email OTP
+ * Length). Si se cambia allá, hay que cambiar esta constante también.
+ */
+const CODE_LENGTH = 8;
 
 export default function IngresarPage() {
   const router = useRouter();
@@ -129,7 +138,7 @@ export default function IngresarPage() {
 
         <p className="mt-3 text-base text-muted">
           {step === "email" ? (
-            "Sin contraseña. Te mandamos un código de 6 dígitos cada vez."
+            `Sin contraseña. Te mandamos un código de ${CODE_LENGTH} dígitos cada vez.`
           ) : (
             <>
               Te mandamos un código a{" "}
@@ -174,7 +183,7 @@ export default function IngresarPage() {
               <legend className="sr-only">
                 Código de {CODE_LENGTH} dígitos que te llegó por email
               </legend>
-              <div className="flex gap-2">
+              <div className="flex gap-1 sm:gap-2">
                 {digits.map((digit, i) => (
                   <div key={i} className="flex-1">
                     <label htmlFor={`otp-${i}`} className="sr-only">
@@ -195,7 +204,7 @@ export default function IngresarPage() {
                       onPaste={handlePaste}
                       aria-invalid={error ? true : undefined}
                       aria-describedby={error ? "ingresar-error" : undefined}
-                      className="h-14 w-full rounded-sm border-2 border-border bg-background-card text-center font-display text-2xl text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40"
+                      className="h-12 w-full rounded-sm border-2 border-border bg-background-card px-0 text-center font-display text-lg text-foreground outline-none focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-14 sm:text-2xl"
                     />
                   </div>
                 ))}

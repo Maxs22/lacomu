@@ -29,7 +29,7 @@ Validar si desconocidos ayudan económicamente a personas u organizaciones con l
 - Mobile-first.
 - Donar NO requiere login.
 - Crear/administrar campaña SÍ requiere login.
-- Login sin contraseña: OTP de 6 dígitos por email. La pantalla se llama "Ingresar a lacomu" — no separar "Registrarse" de "Iniciar sesión".
+- Login sin contraseña: OTP numérico por email (8 dígitos — el largo lo define Supabase en Authentication → Settings → Email OTP Length; si se cambia allá, actualizar CODE_LENGTH en src/app/ingresar/page.tsx). La pantalla se llama "Ingresar a lacomu" — no separar "Registrarse" de "Iniciar sesión".
 - Sin categoría fija: cada campaña define su propio motivo en título/descripción libre (necesidad personal, proyecto propio, apoyo a una organización, lo que sea). No hay taxonomía de categorías en el MVP.
 - Las campañas se publican solas, sin revisión manual: cada usuario carga su pedido y queda visible al toque. No hay panel de admin para aprobar/rechazar.
 - lacomu NO custodia fondos en el MVP. Mercado Pago se usa por reconciliación (preference/webhook/external_reference), pagando directo al beneficiario.
