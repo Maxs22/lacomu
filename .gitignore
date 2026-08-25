@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.vercel
+.env*
+# El example NO tiene valores reales, sirve de documentación de qué
+# variables hace falta configurar — ese sí se commitea.
+!.env.local.example

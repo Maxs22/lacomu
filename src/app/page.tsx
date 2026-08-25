@@ -1,69 +1,139 @@
-import Image from "next/image";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { CampaignCard } from "@/components/campaign-card";
+import { getPublishedCampaigns } from "@/lib/campaigns";
 
-export default function Home() {
+const CHAIN_AVATARS = [
+  { initial: "C", tone: "bg-primary" },
+  { initial: "M", tone: "bg-secondary" },
+  { initial: "J", tone: "bg-primary/90" },
+  { initial: "R", tone: "bg-secondary/90" },
+  { initial: "L", tone: "bg-primary/75" },
+  { initial: "N", tone: "bg-secondary/75" },
+  { initial: "S", tone: "bg-primary/60" },
+];
+
+export default async function Home() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const campaigns = await getPublishedCampaigns();
+
+  async function signOut() {
+    "use server";
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+    redirect("/");
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <div className="relative z-[1] flex min-h-screen flex-col">
+      <header className="flex items-center justify-between px-6 py-6 md:px-16">
+        <span className="font-display text-xl font-semibold tracking-tight text-foreground">
+          lacomu<span className="text-primary">.</span>
+        </span>
+
+        {user ? (
+          <div className="flex items-center gap-4 text-sm text-muted">
+            <Link
+              href="/mis-solicitudes"
+              className="hidden underline decoration-dotted underline-offset-4 hover:text-foreground sm:inline"
+            >
+              Mis solicitudes
+            </Link>
+            <Link
+              href="/perfil"
+              className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+            >
+              Tu perfil
+            </Link>
+            <form action={signOut}>
+              <button
+                type="submit"
+                className="underline decoration-dotted underline-offset-4 hover:text-foreground"
+              >
+                Cerrar sesión
+              </button>
+            </form>
+          </div>
+        ) : null}
+      </header>
+
+      <main className="flex flex-col px-6 pt-4 pb-16 md:px-16 md:pt-10">
+        <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
+          <h1 className="font-display text-4xl leading-[1.05] text-foreground sm:text-5xl md:text-6xl">
+            Ayudar a alguien no debería tener{" "}
+            <span className="italic text-primary">letra chica.</span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+
+          <p className="max-w-md text-lg leading-relaxed text-muted">
+            lacomu conecta a quien necesita una mano con quien puede darla.
+            Vos elegís a quién ayudar — nosotros solo nos aseguramos de que
+            sea real.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+          <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
+            <div className="flex -space-x-3">
+              {CHAIN_AVATARS.map((a) => (
+                <span
+                  key={a.initial}
+                  className={`flex h-10 w-10 items-center justify-center rounded-full border-2 border-background text-sm font-semibold text-primary-foreground ${a.tone}`}
+                >
+                  {a.initial}
+                </span>
+              ))}
+              <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-background bg-background-card text-sm font-semibold text-muted">
+                +
+              </span>
+            </div>
+            <p className="max-w-[14rem] text-sm text-muted">
+              Así se arma una cadena: alguien te ayuda a vos, después ayudás
+              a alguien más.
+            </p>
+          </div>
+
+          <div className="pt-4">
+            <Link
+              href={user ? "/pedir-ayuda" : "/ingresar"}
+              className="inline-flex items-center justify-center gap-2 rounded-sm bg-primary px-7 py-4 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)]"
+            >
+              {user ? "Pedir ayuda →" : "Ingresar a lacomu →"}
+            </Link>
+          </div>
         </div>
       </main>
+
+      <section className="px-6 pb-24 md:px-16">
+        <div className="mx-auto flex w-full max-w-5xl flex-col gap-8">
+          <div>
+            <h2 className="font-display text-2xl text-foreground sm:text-3xl">
+              Quién necesita una mano ahora
+            </h2>
+          </div>
+
+          {campaigns.length > 0 ? (
+            <div className="grid gap-6 sm:grid-cols-2">
+              {campaigns.map((campaign) => (
+                <CampaignCard key={campaign.id} campaign={campaign} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-sm border-2 border-dashed border-border px-6 py-12 text-center">
+              <p className="text-base text-muted">
+                Todavía no hay campañas publicadas.
+              </p>
+              <Link
+                href={user ? "/pedir-ayuda" : "/ingresar"}
+                className="mt-2 inline-block text-sm font-semibold text-primary underline decoration-dotted underline-offset-4"
+              >
+                Sé el primero en pedir una mano →
+              </Link>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
