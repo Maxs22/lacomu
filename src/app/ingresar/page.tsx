@@ -106,7 +106,7 @@ export default function IngresarPage() {
   const codeComplete = digits.every((d) => d !== "");
 
   return (
-    <main className="relative z-[1] flex min-h-screen flex-col items-center px-6 pt-10 pb-16 md:pt-16">
+    <main className="relative z-[1] flex flex-1 flex-col items-center px-6 pt-10 pb-16 md:pt-16">
       <div className="w-full max-w-sm">
         <Link
           href="/"

@@ -29,7 +29,7 @@ export default async function Home() {
   }
 
   return (
-    <div className="relative z-[1] flex min-h-screen flex-col">
+    <div className="relative z-[1] flex flex-1 flex-col">
       <header className="flex items-center justify-between px-6 py-6 md:px-16">
         <span className="font-display text-xl font-semibold tracking-tight text-foreground">
           lacomu<span className="text-primary">.</span>

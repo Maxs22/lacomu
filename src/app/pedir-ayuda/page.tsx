@@ -14,7 +14,7 @@ export default async function PedirAyudaPage() {
   }
 
   return (
-    <div className="relative z-[1] flex min-h-screen flex-col">
+    <div className="relative z-[1] flex flex-1 flex-col">
       <header className="px-6 py-6 md:px-16">
         <Link
           href="/"
