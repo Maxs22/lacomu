@@ -17,9 +17,13 @@ export async function checkDonationRateLimit(ip: string | null) {
   const admin = createAdminClient();
   const windowStart = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
+  // La IP vive en una tabla aparte sin policies de RLS — solo el service
+  // role la ve. No está en `contributions` a propósito: el dueño de la
+  // campaña puede leer sus contributions enteras y no necesita ese dato
+  // personal del donante.
   const { count, error } = await admin
-    .from("contributions")
-    .select("id", { count: "exact", head: true })
+    .from("contribution_client_ips")
+    .select("contribution_id", { count: "exact", head: true })
     .eq("client_ip", ip)
     .gte("created_at", windowStart);
 

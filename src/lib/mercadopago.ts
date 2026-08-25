@@ -225,6 +225,7 @@ export async function createPreference({
   externalReference,
   origin,
   campaignId,
+  idempotencyKey,
 }: {
   accessToken: string;
   title: string;
@@ -232,12 +233,26 @@ export async function createPreference({
   externalReference: string;
   origin: string;
   campaignId: string;
+  /**
+   * X-Idempotency-Key: MP dedupe del lado de ellos. Es la defensa más
+   * fuerte contra crear dos preferences para la misma intención, porque
+   * no depende de ningún lock nuestro — si dos procesos llegan a llamar
+   * igual, MP devuelve la misma preference.
+   *
+   * MP lo documenta como obligatorio para Payments/Refunds; acá se manda
+   * también en preferences como defensa en profundidad. No está
+   * verificado contra una cuenta real que preferences lo respete, por eso
+   * NO es el único mecanismo — el claim con fencing y la búsqueda por
+   * external_reference siguen estando.
+   */
+  idempotencyKey?: string;
 }) {
   const response = await fetch(`${MP_API}/checkout/preferences`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
+      ...(idempotencyKey ? { "X-Idempotency-Key": idempotencyKey } : {}),
     },
     body: JSON.stringify({
       items: [

@@ -37,24 +37,34 @@ const CLAIM_TTL_MS = 2 * 60 * 1000;
  */
 async function claimPreferenceCreation(admin: AdminClient, contributionId: string) {
   const staleBefore = new Date(Date.now() - CLAIM_TTL_MS).toISOString();
+  const token = crypto.randomUUID();
 
   const { data } = await admin
     .from("contributions")
-    .update({ mp_preference_claim_started_at: new Date().toISOString() })
+    .update({
+      mp_preference_claim_started_at: new Date().toISOString(),
+      mp_preference_claim_token: token,
+    })
     .eq("id", contributionId)
     .or(
       `mp_preference_claim_started_at.is.null,mp_preference_claim_started_at.lt.${staleBefore}`,
     )
-    .select("id")
+    .select("id, mp_preference_claim_token")
     .maybeSingle();
-  return Boolean(data);
+
+  if (!data) return { won: false as const };
+
+  // Si el claim anterior no era NULL, se lo estamos quitando a alguien
+  // que puede seguir vivo (TTL vencido no prueba que murió). En ese caso
+  // hay que verificar contra MP antes de crear nada.
+  return { won: true as const, token };
 }
 
 /** Libera el claim para que un reintento inmediato no tenga que esperar el TTL. */
 async function releasePreferenceClaim(admin: AdminClient, contributionId: string) {
   await admin
     .from("contributions")
-    .update({ mp_preference_claim_started_at: null })
+    .update({ mp_preference_claim_started_at: null, mp_preference_claim_token: null })
     .eq("id", contributionId);
 }
 
@@ -186,13 +196,6 @@ export async function POST(request: Request) {
   }
 
   const clientIp = getClientIp(request);
-  const rateLimit = await checkDonationRateLimit(clientIp);
-  if (!rateLimit.allowed) {
-    return NextResponse.json(
-      { error: "Demasiados intentos. Esperá un rato y volvé a probar." },
-      { status: 429 },
-    );
-  }
 
   const supabase = await createClient();
   const {
@@ -236,6 +239,19 @@ export async function POST(request: Request) {
     if (resolution.type === "contribution") contribution = resolution.contribution;
   }
 
+  // El rate limit va DESPUÉS de resolver la key: recuperar un checkout ya
+  // creado no es un intento nuevo de pagar, así que no debería consumir
+  // cuota ni quedar bloqueado por ella. Solo limitamos la creación real.
+  if (!contribution) {
+    const rateLimit = await checkDonationRateLimit(clientIp);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Demasiados intentos. Esperá un rato y volvé a probar." },
+        { status: 429 },
+      );
+    }
+  }
+
   if (!contribution) {
     const { data: inserted, error: insertError } = await admin
       .from("contributions")
@@ -249,10 +265,18 @@ export async function POST(request: Request) {
         currency: "ARS",
         status: "pending",
         idempotency_key: key,
-        client_ip: clientIp,
       })
       .select("id")
       .single();
+
+    // La IP va a una tabla aparte que solo el service role puede leer —
+    // el dueño de la campaña puede leer sus contributions enteras por
+    // RLS y no necesita el dato personal del donante para nada.
+    if (inserted && clientIp) {
+      await admin
+        .from("contribution_client_ips")
+        .insert({ contribution_id: inserted.id, client_ip: clientIp });
+    }
 
     if (insertError?.code === "23505" && key) {
       // unique_violation en idempotency_key: otro request con la misma
@@ -285,9 +309,9 @@ export async function POST(request: Request) {
   // tiene preference. Antes de llamarle a MP, reservamos atómicamente el
   // derecho a crearla — si otro request ya la está creando (o la creó),
   // no llamamos a MP nosotros también.
-  const wonClaim = await claimPreferenceCreation(admin, contribution.id);
+  const claim = await claimPreferenceCreation(admin, contribution.id);
 
-  if (!wonClaim) {
+  if (!claim.won) {
     const initPoint = await waitForInitPoint(admin, contribution.id);
     if (initPoint) {
       return NextResponse.json({ initPoint });
@@ -320,6 +344,12 @@ export async function POST(request: Request) {
 
   let accessToken = connection.access_token;
 
+  // Derivado de la contribution (no del claim, que cambia en cada
+  // retoma): si dos procesos llegaran a llamar igual — el TTL vencido no
+  // prueba que el primero murió — MP recibe la MISMA key y devuelve la
+  // misma preference en vez de crear dos.
+  const mpIdempotencyKey = `lacomu-${contribution.id}`;
+
   try {
     let preference;
     try {
@@ -330,6 +360,7 @@ export async function POST(request: Request) {
         externalReference: contribution.id,
         origin,
         campaignId,
+        idempotencyKey: mpIdempotencyKey,
       });
     } catch (err) {
       // El access_token del beneficiario puede haber vencido. Si tenemos
@@ -359,6 +390,7 @@ export async function POST(request: Request) {
           externalReference: contribution.id,
           origin,
           campaignId,
+          idempotencyKey: mpIdempotencyKey,
         });
       } else {
         throw err;
@@ -372,22 +404,43 @@ export async function POST(request: Request) {
     // findPreferenceByExternalReference más arriba, que no depende de que
     // este guardado haya funcionado — ese es el que cierra el hueco de
     // verdad, esto de acá es solo la optimización del caso feliz.
+    // FENCING: el update solo aplica si seguimos siendo dueños del claim.
+    // Si tardamos más que el TTL y otro nos lo quitó, `rows` viene vacío
+    // y no pisamos lo que haya escrito el nuevo dueño.
     let saved = false;
+    let lostClaim = false;
     let lastUpdateError: unknown = null;
-    for (let attempt = 0; attempt < 3 && !saved; attempt++) {
+    for (let attempt = 0; attempt < 3 && !saved && !lostClaim; attempt++) {
       if (attempt > 0) await sleep(300 * attempt);
-      const { error: updateError } = await admin
+      const { data: rows, error: updateError } = await admin
         .from("contributions")
         .update({
           mp_preference_id: preference.id,
           mp_init_point: preference.init_point,
         })
-        .eq("id", contribution.id);
-      if (!updateError) {
+        .eq("id", contribution.id)
+        .eq("mp_preference_claim_token", claim.token)
+        .select("id");
+
+      if (updateError) {
+        lastUpdateError = updateError;
+      } else if (rows && rows.length > 0) {
         saved = true;
       } else {
-        lastUpdateError = updateError;
+        lostClaim = true;
       }
+    }
+
+    if (lostClaim) {
+      // Otro request retomó el claim mientras nosotros seguíamos con MP.
+      // Gracias al X-Idempotency-Key ambos deberían haber obtenido la
+      // MISMA preference, así que devolvemos la nuestra sin pisar la
+      // suya — el estado converge igual.
+      console.warn("MP create-preference: se perdió el claim durante la creación", {
+        contributionId: contribution.id,
+        preferenceId: preference.id,
+      });
+      return NextResponse.json({ initPoint: preference.init_point });
     }
 
     if (!saved) {
