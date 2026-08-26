@@ -5,7 +5,18 @@ import path from "node:path";
 const CANONICAL_HOST = "lacomu.ar";
 
 /** Registrados de forma defensiva; no sirven contenido propio. */
-const ALIAS_HOSTS = ["lacomu.store", "lacomu.online"];
+const ALIAS_DOMAINS = ["lacomu.store", "lacomu.online"];
+
+/**
+ * Todo host que no sea el canónico redirige a él: los dominios alias con
+ * y sin www, y el www del propio dominio (si no, `www.lacomu.ar` serviría
+ * el mismo contenido en otra URL — contenido duplicado).
+ */
+const REDIRECT_HOSTS = [
+  ...ALIAS_DOMAINS,
+  ...ALIAS_DOMAINS.map((host) => `www.${host}`),
+  `www.${CANONICAL_HOST}`,
+];
 
 const nextConfig: NextConfig = {
   // Fija la raíz explícitamente: evita que Turbopack ambigüe con un
@@ -22,20 +33,12 @@ const nextConfig: NextConfig = {
     // 308 (permanente, preserva el método) para que buscadores y clientes
     // consoliden todo en el dominio canónico y no haya contenido
     // duplicado repartido entre tres dominios.
-    return ALIAS_HOSTS.flatMap((host) => [
-      {
-        source: "/:path*",
-        has: [{ type: "host" as const, value: host }],
-        destination: `https://${CANONICAL_HOST}/:path*`,
-        permanent: true,
-      },
-      {
-        source: "/:path*",
-        has: [{ type: "host" as const, value: `www.${host}` }],
-        destination: `https://${CANONICAL_HOST}/:path*`,
-        permanent: true,
-      },
-    ]);
+    return REDIRECT_HOSTS.map((host) => ({
+      source: "/:path*",
+      has: [{ type: "host" as const, value: host }],
+      destination: `https://${CANONICAL_HOST}/:path*`,
+      permanent: true,
+    }));
   },
 };
 
