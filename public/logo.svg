@@ -1,0 +1,61 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 180 112"
+  width="180"
+  height="112"
+  role="img"
+  aria-label="lacomu"
+>
+  <title>lacomu</title>
+
+  <rect width="180" height="112" fill="#ffffff" />
+
+  <!--
+    Cinco siluetas superpuestas en arco: el centro más alto y adelante, las
+    de los costados más bajas y detrás. Se dibujan de afuera hacia adentro
+    para que la del medio quede encima.
+
+    Cada figura lleva un contorno blanco (stroke bajo el fill vía
+    paint-order) para que se separen entre sí sin necesitar espacio muerto
+    — mismo recurso que la fila de avatares de la home.
+
+    Colores de la marca: terracota #a83f21 al centro, oliva y ocre a los
+    lados.
+  -->
+  <g
+    stroke="#ffffff"
+    stroke-width="7"
+    stroke-linejoin="round"
+    paint-order="stroke"
+  >
+    <!-- izquierda externa · oliva -->
+    <g transform="translate(35 92) scale(0.8)" fill="#4f6142">
+      <path d="M -19 0 C -19 -30 -12 -40 0 -40 C 12 -40 19 -30 19 0 Z" />
+      <circle cx="0" cy="-56" r="12" />
+    </g>
+
+    <!-- derecha externa · marrón -->
+    <g transform="translate(145 92) scale(0.8)" fill="#6b4530">
+      <path d="M -19 0 C -19 -30 -12 -40 0 -40 C 12 -40 19 -30 19 0 Z" />
+      <circle cx="0" cy="-56" r="12" />
+    </g>
+
+    <!-- izquierda interna · ocre -->
+    <g transform="translate(62 92) scale(0.92)" fill="#c9803c">
+      <path d="M -19 0 C -19 -30 -12 -40 0 -40 C 12 -40 19 -30 19 0 Z" />
+      <circle cx="0" cy="-56" r="12" />
+    </g>
+
+    <!-- derecha interna · verde claro -->
+    <g transform="translate(118 92) scale(0.92)" fill="#8fa05e">
+      <path d="M -19 0 C -19 -30 -12 -40 0 -40 C 12 -40 19 -30 19 0 Z" />
+      <circle cx="0" cy="-56" r="12" />
+    </g>
+
+    <!-- centro · terracota (color primario de la marca) -->
+    <g transform="translate(90 92) scale(1.05)" fill="#a83f21">
+      <path d="M -19 0 C -19 -30 -12 -40 0 -40 C 12 -40 19 -30 19 0 Z" />
+      <circle cx="0" cy="-56" r="12" />
+    </g>
+  </g>
+</svg>

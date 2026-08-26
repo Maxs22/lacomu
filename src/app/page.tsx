@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CampaignCard } from "@/components/campaign-card";
+import { LogoMark } from "@/components/logo-mark";
 import { getPublishedCampaigns } from "@/lib/campaigns";
 
 const CHAIN_AVATARS = [
@@ -31,8 +32,11 @@ export default async function Home() {
   return (
     <div className="relative z-[1] flex flex-1 flex-col">
       <header className="flex items-center justify-between px-6 py-6 md:px-16">
-        <span className="font-display text-xl font-semibold tracking-tight text-foreground">
-          lacomu<span className="text-primary">.</span>
+        <span className="flex items-center gap-2">
+          <LogoMark className="h-7 w-auto" />
+          <span className="font-display text-xl font-semibold tracking-tight text-foreground">
+            lacomu<span className="text-primary">.</span>
+          </span>
         </span>
 
         {user ? (
