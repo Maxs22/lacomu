@@ -72,6 +72,7 @@ export function DonateForm({ campaignId }: { campaignId: string }) {
           Tu nombre (opcional, se muestra públicamente)
           <input
             type="text"
+            maxLength={60}
             value={donorDisplayName}
             onChange={(e) => setDonorDisplayName(e.target.value)}
             placeholder="Cómo querés que te vean"

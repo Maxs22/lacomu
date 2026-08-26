@@ -98,6 +98,7 @@ export function PedirAyudaForm({ userId }: { userId: string }) {
         <textarea
           required
           rows={5}
+          maxLength={2000}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="¿Qué te pasó? ¿Para qué necesitás la ayuda?"

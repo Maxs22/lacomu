@@ -66,6 +66,7 @@ export function PerfilForm({
           Nombre
           <input
             type="text"
+            maxLength={60}
             value={fullName}
             onChange={(e) => {
               setFullName(e.target.value);

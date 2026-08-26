@@ -67,7 +67,7 @@ export default async function MisSolicitudesPage() {
                     className="flex flex-col gap-2 rounded-sm border-2 border-border bg-background-card p-5"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <h2 className="font-display text-lg text-foreground">
+                      <h2 className="break-words font-display text-lg text-foreground">
                         {app.title}
                       </h2>
                       <StatusBadge status={app.status} />

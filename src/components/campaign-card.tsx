@@ -31,7 +31,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <p className="text-xs font-semibold uppercase tracking-[0.15em] text-muted">
             {campaign.ownerName}
           </p>
-          <h3 className="mt-1 font-display text-xl leading-snug text-foreground group-hover:text-primary">
+          <h3 className="mt-1 break-words font-display text-xl leading-snug text-foreground group-hover:text-primary">
             {campaign.title}
           </h3>
         </div>

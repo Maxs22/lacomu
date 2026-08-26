@@ -5,15 +5,46 @@ import { formatCurrency } from "@/lib/format";
 import { ProgressBar } from "@/components/progress-bar";
 import { DonateForm } from "./donate-form";
 
+/**
+ * Mercado Pago devuelve al donante a esta página con ?ayuda=... (ver las
+ * back_urls en createPreference). Sin esto, alguien que acaba de pagar
+ * volvía a la página sin ninguna señal de que su pago se registró.
+ *
+ * Ojo: "éxito" acá significa que MP dijo que salió bien, no que ya lo
+ * confirmamos nosotros — la confirmación real la hace el webhook y puede
+ * tardar. El copy lo refleja en vez de prometer algo que todavía no pasó.
+ */
+const AYUDA_MENSAJES = {
+  exito: {
+    tone: "bg-secondary/15 text-secondary",
+    text: "¡Gracias! Tu ayuda se registró. Puede tardar un momento en aparecer en el total.",
+  },
+  pendiente: {
+    tone: "bg-border/60 text-muted",
+    text: "Tu pago quedó pendiente de acreditación. Cuando Mercado Pago lo confirme, se va a sumar acá.",
+  },
+  error: {
+    tone: "bg-primary/15 text-primary",
+    text: "El pago no se pudo completar. No se te cobró nada — podés intentar de nuevo.",
+  },
+} as const;
+
 export default async function CampaignDetailPage({
   params,
+  searchParams,
 }: PageProps<"/campanas/[id]">) {
   const { id } = await params;
+  const { ayuda } = await searchParams;
   const campaign = await getCampaignById(id);
 
   if (!campaign) {
     notFound();
   }
+
+  const aviso =
+    typeof ayuda === "string" && ayuda in AYUDA_MENSAJES
+      ? AYUDA_MENSAJES[ayuda as keyof typeof AYUDA_MENSAJES]
+      : null;
 
   const toneClass = campaign.tone === "primary" ? "bg-primary" : "bg-secondary";
 
@@ -30,6 +61,15 @@ export default async function CampaignDetailPage({
 
       <main className="px-6 pb-24 md:px-16">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
+          {aviso ? (
+            <p
+              role="status"
+              className={`rounded-sm px-4 py-3 text-sm font-medium ${aviso.tone}`}
+            >
+              {aviso.text}
+            </p>
+          ) : null}
+
           <div
             className={`h-48 overflow-hidden rounded-sm ${
               campaign.coverImageUrl
@@ -61,13 +101,13 @@ export default async function CampaignDetailPage({
               />
             ) : null}
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.15em] text-muted">
+              <p className="break-words text-sm font-semibold uppercase tracking-[0.15em] text-muted">
                 {campaign.ownerName}
               </p>
             </div>
           </div>
 
-          <h1 className="-mt-4 font-display text-3xl leading-tight text-foreground sm:text-4xl">
+          <h1 className="-mt-4 break-words font-display text-3xl leading-tight text-foreground sm:text-4xl">
             {campaign.title}
           </h1>
 
@@ -82,7 +122,7 @@ export default async function CampaignDetailPage({
               : "Todavía nadie ayudó — podés ser el primero."}
           </p>
 
-          <p className="whitespace-pre-line text-lg leading-relaxed text-foreground">
+          <p className="whitespace-pre-line break-words text-lg leading-relaxed text-foreground">
             {campaign.description}
           </p>
 
