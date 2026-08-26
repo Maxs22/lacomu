@@ -71,6 +71,21 @@ Inspiración de simplicidad: Matecito. No diseñar como dashboard SaaS. Contenid
 9. ❌ Descartado: no hay aprobación manual, ver Reglas de producto. `role`/RLS de admin quedan en el schema sin uso activo (moderación posterior futura, no un gate de publicación).
 10. ✅ Mercado Pago (OAuth Marketplace) — falta cargar credenciales reales y probar contra sandbox.
 
+## Deploy
+
+El repo está conectado al proyecto de Vercel, así que **cada push a `main`
+deploya a producción solo**. No hace falta `vercel deploy`.
+
+Esto se conectó recién el 26/08 y su ausencia causó un problema real: durante
+un día producción sirvió un build viejo con el login roto (pedía 6 dígitos
+cuando Supabase manda 8), porque los pushes no disparaban nada y nadie
+ejecutaba el deploy a mano. Si vuelve a aparecer una diferencia entre lo que
+está en `main` y lo que sirve el dominio, lo primero a revisar es si esa
+conexión sigue en pie.
+
+Las variables `NEXT_PUBLIC_*` se compilan dentro del build: cambiarlas en
+Vercel no tiene efecto hasta que haya un deploy nuevo.
+
 ## Workflow de agentes/IA
 
 Una IA escribe el repo, otra revisa — nunca varias tocando el código al mismo tiempo. Claude Code es el implementador principal de este repo. No agregar librerías que no sean estrictamente necesarias para la tarea en curso. No inventar funcionalidades fuera del MVP. Al terminar una tarea: correr lint, typecheck y build; corregir errores; resumir archivos creados/modificados.
