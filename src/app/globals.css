@@ -12,6 +12,9 @@
   --primary-foreground: #fcf3e6;
   --secondary: #4f6142;
   --secondary-foreground: #fcf3e6;
+  --success: #4f6142;
+  --warning: #865a12;
+  --error: #8c3024;
 }
 
 @theme inline {
@@ -24,6 +27,9 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
   --font-display: var(--font-fraunces);
   --font-sans: var(--font-karla);
 }

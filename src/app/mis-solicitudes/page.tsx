@@ -81,7 +81,7 @@ export default async function MisSolicitudesPage() {
                       </p>
                     ) : null}
                     {app.status === "rejected" && app.rejection_reason ? (
-                      <p className="text-sm text-primary">
+                      <p className="text-sm text-error">
                         Motivo: {app.rejection_reason}
                       </p>
                     ) : null}

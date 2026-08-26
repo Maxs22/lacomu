@@ -4,7 +4,7 @@ import { DocPage, DocSection } from "@/components/doc-page";
 import { PLATFORM_FEE_LABEL } from "@/lib/fees";
 
 export const metadata: Metadata = {
-  title: "Términos y condiciones — lacomu",
+  title: "Términos y condiciones",
   description:
     "Reglas de uso de lacomu: qué podés publicar, cómo se maneja la plata y qué responsabilidad asume cada parte.",
 };

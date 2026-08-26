@@ -62,18 +62,18 @@ export default async function PerfilPage({
             </p>
 
             {mp === "error" ? (
-              <p className="text-sm text-primary">
+              <p className="text-sm text-error">
                 No pudimos vincular tu cuenta. Probá de nuevo.
               </p>
             ) : null}
             {mp === "success" ? (
-              <p className="text-sm text-secondary">
+              <p className="text-sm text-success">
                 Listo, tu cuenta quedó vinculada.
               </p>
             ) : null}
 
             {mpConnection ? (
-              <p className="text-sm text-secondary">
+              <p className="text-sm text-success">
                 Cuenta vinculada — ya podés recibir ayuda en tus campañas.
               </p>
             ) : (

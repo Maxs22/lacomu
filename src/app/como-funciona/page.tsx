@@ -4,7 +4,7 @@ import { DocPage, DocSection } from "@/components/doc-page";
 import { PLATFORM_FEE_LABEL } from "@/lib/fees";
 
 export const metadata: Metadata = {
-  title: "Cómo funciona — lacomu",
+  title: "Cómo funciona",
   description:
     "Cómo se pide ayuda, cómo se dona y qué hace (y qué no hace) lacomu con la plata.",
 };

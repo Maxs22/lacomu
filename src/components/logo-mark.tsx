@@ -19,16 +19,16 @@ type Figure = { x: number; scale: number; fill: string };
 
 /** De afuera hacia adentro, para que la del centro quede encima. */
 const FULL: Figure[] = [
-  { x: 35, scale: 0.8, fill: "#4f6142" },
-  { x: 145, scale: 0.8, fill: "#6b4530" },
-  { x: 62, scale: 0.92, fill: "#c9803c" },
-  { x: 118, scale: 0.92, fill: "#8fa05e" },
+  { x: 35, scale: 0.8, fill: "#7d8471" },
+  { x: 145, scale: 0.8, fill: "#8a7566" },
+  { x: 62, scale: 0.92, fill: "#b98b5e" },
+  { x: 118, scale: 0.92, fill: "#8d9a7b" },
   { x: 90, scale: 1.05, fill: "#a83f21" },
 ];
 
 const COMPACT: Figure[] = [
-  { x: 48, scale: 0.86, fill: "#4f6142" },
-  { x: 132, scale: 0.86, fill: "#c9803c" },
+  { x: 48, scale: 0.86, fill: "#7d8471" },
+  { x: 132, scale: 0.86, fill: "#b98b5e" },
   { x: 90, scale: 1.05, fill: "#a83f21" },
 ];
 

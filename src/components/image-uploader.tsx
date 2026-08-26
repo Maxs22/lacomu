@@ -127,7 +127,7 @@ export function ImageUploader({
       />
 
       {error ? (
-        <p id={errorId} role="alert" className="text-sm text-primary">
+          <p id={errorId} role="alert" className="text-sm text-error">
           {error}
         </p>
       ) : null}

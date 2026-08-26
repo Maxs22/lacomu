@@ -87,11 +87,11 @@ export function PerfilForm({
         >
           {saving ? "Guardando…" : "Guardar"}
         </button>
-        <p role="status" aria-live="polite" className="text-sm text-secondary">
+        <p role="status" aria-live="polite" className="text-sm text-success">
           {saved ? "Guardado." : ""}
         </p>
         {error ? (
-          <p id="perfil-nombre-error" role="alert" className="text-sm text-primary">
+          <p id="perfil-nombre-error" role="alert" className="text-sm text-error">
             {error}
           </p>
         ) : null}

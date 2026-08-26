@@ -232,7 +232,7 @@ export default function IngresarPage() {
         )}
 
         {error ? (
-          <p id="ingresar-error" role="alert" className="mt-4 text-sm text-primary">
+          <p id="ingresar-error" role="alert" className="mt-4 text-sm text-error">
             {error}
           </p>
         ) : null}

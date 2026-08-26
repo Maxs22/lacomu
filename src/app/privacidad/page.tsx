@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { DocPage, DocSection } from "@/components/doc-page";
 
 export const metadata: Metadata = {
-  title: "Privacidad — lacomu",
+  title: "Privacidad",
   description:
     "Qué datos guarda lacomu, para qué los usa, quién los ve y cómo pedir que se borren.",
 };

@@ -131,7 +131,7 @@ export function DonateForm({ campaignId }: { campaignId: string }) {
       </button>
 
       {error ? (
-        <p role="alert" className="text-sm text-primary">
+          <p role="alert" className="text-sm text-error">
           {error}
         </p>
       ) : null}

@@ -6,9 +6,9 @@
  * flujo de revisión que no existe.
  */
 const STATUS_STYLES: Record<string, string> = {
-  pending: "bg-border/60 text-muted",
-  approved: "bg-secondary/15 text-secondary",
-  rejected: "bg-primary/15 text-primary",
+  pending: "bg-warning/15 text-warning",
+  approved: "bg-success/15 text-success",
+  rejected: "bg-error/15 text-error",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -21,7 +21,7 @@ export function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={`inline-flex w-fit items-center rounded-sm px-2.5 py-1 text-xs font-semibold uppercase tracking-wider ${
-        STATUS_STYLES[status] ?? "bg-border/60 text-muted"
+        STATUS_STYLES[status] ?? "bg-warning/15 text-warning"
       }`}
     >
       {STATUS_LABELS[status] ?? status}

@@ -16,15 +16,15 @@ import { DonateForm } from "./donate-form";
  */
 const AYUDA_MENSAJES = {
   exito: {
-    tone: "bg-secondary/15 text-secondary",
+    tone: "bg-success/15 text-success",
     text: "¡Gracias! Tu ayuda se registró. Puede tardar un momento en aparecer en el total.",
   },
   pendiente: {
-    tone: "bg-border/60 text-muted",
+    tone: "bg-warning/15 text-warning",
     text: "Tu pago quedó pendiente de acreditación. Cuando Mercado Pago lo confirme, se va a sumar acá.",
   },
   error: {
-    tone: "bg-primary/15 text-primary",
+    tone: "bg-error/15 text-error",
     text: "El pago no se pudo completar. No se te cobró nada — podés intentar de nuevo.",
   },
 } as const;
