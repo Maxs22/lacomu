@@ -57,15 +57,16 @@ export default function ComoFuncionaPage() {
           persona que pidió ayuda. Nosotros no la recibimos, no la
           administramos y no la podemos retener.
         </p>
-        <p>De cada donación se descuentan dos cosas, en este orden:</p>
+        <p>De cada donación se descuentan dos cosas:</p>
         <ol className="ml-5 flex list-decimal flex-col gap-2">
           <li>
             La comisión de <strong className="text-foreground">Mercado Pago</strong>,
             que la fija Mercado Pago y no depende de nosotros.
           </li>
           <li>
-            El <strong className="text-foreground">{PLATFORM_FEE_LABEL}</strong> que
-            se queda lacomu para pagar la infraestructura y el desarrollo.
+            El <strong className="text-foreground">{PLATFORM_FEE_LABEL}</strong> del
+            monto que donás, que se queda lacomu para pagar la infraestructura
+            y el desarrollo.
           </li>
         </ol>
         <p>

@@ -32,11 +32,11 @@ export default function TerminosPage() {
           recibe, no retiene y no administra el dinero de las donaciones.
         </p>
         <p>
-          De cada donación se descuenta primero la comisión de Mercado Pago y
-          después una comisión de{" "}
+          De cada donación se descuenta una comisión de{" "}
           <strong className="text-foreground">{PLATFORM_FEE_LABEL}</strong>{" "}
-          que corresponde a lacomu para sostener infraestructura y
-          desarrollo. El remanente lo recibe directamente el beneficiario.
+          del monto donado, que corresponde a lacomu para sostener
+          infraestructura y desarrollo. Mercado Pago cobra su comisión por
+          separado. El remanente lo recibe directamente el beneficiario.
         </p>
         <p>
           Como consecuencia de lo anterior, lacomu no puede emitir

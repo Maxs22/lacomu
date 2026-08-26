@@ -416,18 +416,20 @@ export async function POST(request: Request) {
         return NextResponse.json({ initPoint: recovered.init_point });
       }
     } catch (err) {
-      // No pudimos verificar si el proceso anterior ya creó una. Crear a
-      // ciegas es justo el duplicado que queremos evitar.
       console.error(
         "MP create-preference: claim retomado pero no se pudo verificar duplicados",
         err,
       );
-      await releasePreferenceClaim(admin, contribution.id, claim.token);
-      return NextResponse.json(
-        { error: "No se pudo verificar el estado del pago. Probá de nuevo en un momento." },
-        { status: 503 },
-      );
     }
+
+    // Un claim vencido no demuestra que el request anterior haya muerto:
+    // puede seguir esperando la respuesta de MP. Si no aparece todavía una
+    // preference, crear otra sería cobrar dos veces. Conservamos el claim
+    // para que el próximo intento vuelva a reconciliar antes de actuar.
+    return NextResponse.json(
+      { error: "El pago anterior todavía se está verificando. Probá de nuevo en unos minutos." },
+      { status: 409 },
+    );
   }
 
   let accessToken = connection.access_token;

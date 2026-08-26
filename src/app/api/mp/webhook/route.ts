@@ -7,6 +7,35 @@ import {
   isValidWebhookSignature,
 } from "@/lib/mercadopago";
 
+type AdminClient = ReturnType<typeof createAdminClient>;
+
+async function recordWebhookEvent(
+  admin: AdminClient,
+  {
+    paymentId,
+    contributionId,
+    paymentStatus,
+    reconciliationStatus,
+  }: {
+    paymentId: string;
+    contributionId: string;
+    paymentStatus: string;
+    reconciliationStatus: "settled" | "duplicate" | "mismatch";
+  },
+) {
+  const { error } = await admin.from("mp_webhook_events").upsert(
+    {
+      payment_id: paymentId,
+      contribution_id: contributionId,
+      payment_status: paymentStatus,
+      reconciliation_status: reconciliationStatus,
+      last_seen_at: new Date().toISOString(),
+    },
+    { onConflict: "payment_id" },
+  );
+  return error;
+}
+
 /**
  * Mercado Pago pega acá cuando cambia el estado de un pago.
  *
@@ -83,7 +112,7 @@ export async function POST(request: Request) {
     const { data, error } = await admin
       .from("contributions")
       .select(
-        "id, amount, currency, campaign_id, campaigns(owner:profiles!owner_id(mp_connections(mp_user_id)))",
+        "id, amount, currency, mp_payment_id, campaigns(owner:profiles!owner_id(mp_connections(mp_user_id)))",
       )
       .eq("id", payment.external_reference)
       .single();
@@ -124,16 +153,51 @@ export async function POST(request: Request) {
   // de que llegue esta notificación. Eso no invalida un cobro real — si
   // lo exigiéramos, quedaría plata cobrada y nunca acreditada.
   if (!amountMatches || !currencyMatches || !collectorMatches) {
-    // Esto sí es un mismatch real contra lo que esperábamos, no un error
-    // transitorio — no tiene sentido que MP reintente lo mismo. Queda en
-    // el estado que tenía (normalmente 'pending') para reconciliar a
-    // mano. No hay infra de alertas todavía, al menos queda en los logs.
+    const eventError = await recordWebhookEvent(admin, {
+      paymentId: String(payment.id),
+      contributionId: contribution.id,
+      paymentStatus: payment.status,
+      reconciliationStatus: "mismatch",
+    });
+    if (eventError) {
+      console.error("MP webhook: fallo guardando mismatch", eventError);
+      return NextResponse.json({ error: "No se pudo registrar el pago." }, { status: 502 });
+    }
+
+    // Es definitivo para este pago, pero queda registrado para poder
+    // reconciliarlo en vez de perderlo tras responder 200 a MP.
     console.error("MP webhook: mismatch de reconciliación", {
       paymentId: payment.id,
       contributionId: contribution.id,
       amountMatches,
       currencyMatches,
       collectorMatches,
+    });
+    return NextResponse.json({ ok: true });
+  }
+
+  if (
+    contribution.mp_payment_id &&
+    contribution.mp_payment_id !== String(payment.id)
+  ) {
+    const eventError = await recordWebhookEvent(admin, {
+      paymentId: String(payment.id),
+      contributionId: contribution.id,
+      paymentStatus: payment.status,
+      reconciliationStatus: "duplicate",
+    });
+    if (eventError) {
+      console.error("MP webhook: fallo guardando pago duplicado", eventError);
+      return NextResponse.json({ error: "No se pudo registrar el pago." }, { status: 502 });
+    }
+
+    // Nunca sobrescribimos el primer pago asociado a una contribution.
+    // Este evento queda disponible para resolver el cobro duplicado fuera
+    // del webhook (lacomu no puede devolver fondos directamente).
+    console.error("MP webhook: pago adicional para la misma contribution", {
+      paymentId: payment.id,
+      contributionId: contribution.id,
+      settledPaymentId: contribution.mp_payment_id,
     });
     return NextResponse.json({ ok: true });
   }
@@ -157,6 +221,17 @@ export async function POST(request: Request) {
   if (updateError) {
     console.error("MP webhook: fallo transitorio guardando el estado", updateError);
     return NextResponse.json({ error: "No se pudo guardar el estado." }, { status: 502 });
+  }
+
+  const eventError = await recordWebhookEvent(admin, {
+    paymentId: String(payment.id),
+    contributionId: contribution.id,
+    paymentStatus: payment.status,
+    reconciliationStatus: "settled",
+  });
+  if (eventError) {
+    console.error("MP webhook: fallo guardando evento", eventError);
+    return NextResponse.json({ error: "No se pudo registrar el pago." }, { status: 502 });
   }
 
   return NextResponse.json({ ok: true });

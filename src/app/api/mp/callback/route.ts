@@ -6,7 +6,7 @@ import { exchangeCodeForToken, getCanonicalOrigin } from "@/lib/mercadopago";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const origin = url.origin;
+  const origin = getCanonicalOrigin(request);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
 
