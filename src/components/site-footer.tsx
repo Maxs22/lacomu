@@ -28,40 +28,31 @@ export function SiteFooter() {
 
         <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:gap-6 sm:text-left">
           {/*
-            El asset es el chancho del logo de spigcow, recortado de su PNG
-            (se descartan la telaraña y el bloque de texto: a este tamaño no
-            se leen y solo agregan ruido).
+            El wordmark de spigcow, recortado de su asset original (2MB) a
+            480x96 / 23KB. Este PNG SÍ tiene canal alpha (color type 6,
+            verificado en su cabecera), así que se apoya sobre el crema sin
+            necesitar trucos de blend.
 
-            `mix-blend-mode: multiply` es necesario porque ese PNG NO tiene
-            canal alpha — verificado leyendo su cabecera IHDR: color type 2,
-            RGB sin alpha. O sea que trae el fondo blanco horneado y sobre el
-            crema se vería como un recuadro. Con multiply, el blanco se
-            multiplica por el fondo y desaparece.
-
-            Esto asume un fondo CLARO. Si algún día el footer va sobre un
-            fondo oscuro, hay que pedirle a spigcow un PNG con transparencia
-            o un SVG (hoy su favicon.svg es el default de Vite, no su marca).
+            Se usa su logotipo en vez de escribir "spigcow" en la tipografía
+            de lacomu: es la marca de otro, corresponde mostrarla como ellos
+            la diseñaron. El alt lo nombra porque la imagen ES el contenido,
+            no decoración.
           */}
           <a
             href="https://spigcow.com.ar"
             target="_blank"
             rel="noopener noreferrer"
-            className="group inline-flex shrink-0 items-center gap-2 rounded-sm focus-visible:ring-2 focus-visible:ring-primary/40"
+            className="inline-flex shrink-0 items-center gap-2.5 rounded-sm text-sm text-muted transition-opacity hover:opacity-70 focus-visible:ring-2 focus-visible:ring-primary/40"
           >
+            <span>Hecho por</span>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/spigcow.png"
-              alt=""
-              width={96}
-              height={98}
-              className="h-10 w-auto mix-blend-multiply"
+              src="/spigcow-wordmark.png"
+              alt="spigcow"
+              width={480}
+              height={96}
+              className="h-[18px] w-auto"
             />
-            <span className="text-sm text-muted">
-              Hecho por{" "}
-              <span className="font-semibold text-foreground group-hover:text-primary">
-                spigcow
-              </span>
-            </span>
           </a>
           <p className="max-w-md text-sm text-muted">
             lacomu no custodia fondos: van directo a cada persona. Se queda el{" "}
