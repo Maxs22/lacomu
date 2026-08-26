@@ -36,6 +36,30 @@ async function recordWebhookEvent(
   return error;
 }
 
+async function refreshCampaignStats(admin: AdminClient, campaignId: string) {
+  const { data: contributions, error: contributionsError } = await admin
+    .from("contributions")
+    .select("amount")
+    .eq("campaign_id", campaignId)
+    .eq("status", "confirmed");
+  if (contributionsError) return contributionsError;
+
+  const raisedAmount = (contributions ?? []).reduce(
+    (total, contribution) => total + Number(contribution.amount),
+    0,
+  );
+  const { error: statsError } = await admin.from("campaign_stats").upsert(
+    {
+      campaign_id: campaignId,
+      raised_amount: raisedAmount,
+      contributors_count: contributions?.length ?? 0,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "campaign_id" },
+  );
+  return statsError;
+}
+
 /**
  * Mercado Pago pega acá cuando cambia el estado de un pago.
  *
@@ -112,7 +136,7 @@ export async function POST(request: Request) {
     const { data, error } = await admin
       .from("contributions")
       .select(
-        "id, amount, currency, mp_payment_id, campaigns(owner:profiles!owner_id(mp_connections(mp_user_id)))",
+        "id, campaign_id, amount, currency, status, mp_payment_id, campaigns(owner:profiles!owner_id(mp_connections(mp_user_id)))",
       )
       .eq("id", payment.external_reference)
       .single();
@@ -221,6 +245,14 @@ export async function POST(request: Request) {
   if (updateError) {
     console.error("MP webhook: fallo transitorio guardando el estado", updateError);
     return NextResponse.json({ error: "No se pudo guardar el estado." }, { status: 502 });
+  }
+
+  if (contribution.status !== status) {
+    const statsError = await refreshCampaignStats(admin, contribution.campaign_id);
+    if (statsError) {
+      console.error("MP webhook: fallo actualizando los totales", statsError);
+      return NextResponse.json({ error: "No se pudieron actualizar los totales." }, { status: 502 });
+    }
   }
 
   const eventError = await recordWebhookEvent(admin, {

@@ -38,19 +38,20 @@ async function attachContributionStats<
   const supabase = await createClient();
   const ids = rows.map((r) => r.id);
 
-  const { data: contributions } = await supabase
-    .from("public_contributions")
-    .select("campaign_id, amount")
+  const { data: statsRows } = await supabase
+    .from("campaign_stats")
+    .select("campaign_id, raised_amount, contributors_count")
     .in("campaign_id", ids);
 
-  const stats = new Map<string, { raised: number; count: number }>();
-  for (const c of contributions ?? []) {
-    const prev = stats.get(c.campaign_id) ?? { raised: 0, count: 0 };
-    stats.set(c.campaign_id, {
-      raised: prev.raised + Number(c.amount),
-      count: prev.count + 1,
-    });
-  }
+  const stats = new Map(
+    (statsRows ?? []).map((stat) => [
+      stat.campaign_id,
+      {
+        raised: Number(stat.raised_amount),
+        count: stat.contributors_count,
+      },
+    ]),
+  );
 
   return rows.map((r) => ({
     ...r,
