@@ -220,6 +220,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Faltan datos." }, { status: 400 });
   }
 
+  // Obligatoria, no opcional: sin ella no hay forma de deduplicar y un
+  // caller que la omita (o un retry) genera una contribution y un checkout
+  // nuevo cada vez. El form del sitio siempre la manda.
+  if (typeof idempotencyKey !== "string" || idempotencyKey.length < 8) {
+    return NextResponse.json(
+      { error: "Falta idempotencyKey." },
+      { status: 400 },
+    );
+  }
+
   const clientIp = getClientIp(request);
 
   const supabase = await createClient();
@@ -255,10 +265,11 @@ export async function POST(request: Request) {
   // Un doble click o un retry de red no debería cobrar dos veces. Si el
   // cliente manda la misma idempotencyKey de nuevo, reusamos la
   // contribution/preference existente en vez de crear otra.
-  const key = typeof idempotencyKey === "string" ? idempotencyKey : null;
+  // Ya validada arriba como string; el narrowing es para TypeScript.
+  const key: string = idempotencyKey;
   let contribution: { id: string } | null = null;
 
-  if (key) {
+  {
     const resolution = await resolveExistingByKey(admin, key, connection.access_token);
     if (resolution.type === "response") return resolution.response;
     if (resolution.type === "contribution") contribution = resolution.contribution;
@@ -303,7 +314,7 @@ export async function POST(request: Request) {
         .insert({ contribution_id: inserted.id, client_ip: clientIp });
     }
 
-    if (insertError?.code === "23505" && key) {
+    if (insertError?.code === "23505") {
       // unique_violation en idempotency_key: otro request con la misma
       // key ganó la carrera entre nuestro SELECT de arriba y este INSERT
       // (dos clicks/retries simultáneos). En vez de devolver un 500 al

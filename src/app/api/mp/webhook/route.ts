@@ -110,8 +110,14 @@ export async function POST(request: Request) {
   const amountMatches =
     Math.abs(Number(payment.transaction_amount) - Number(contribution.amount)) < 0.01;
   const currencyMatches = payment.currency_id === contribution.currency;
+
+  // Fail CLOSED si no encontramos el mp_user_id del beneficiario: antes
+  // (`!ownerMpUserId || ...`) la falta de conexión hacía pasar cualquier
+  // collector, que es justo lo contrario de lo que este chequeo existe
+  // para hacer. Y no puede haber un pago legítimo sin conexión: sin ella
+  // create-preference nunca habría podido crear la preference.
   const collectorMatches =
-    !ownerMpUserId || String(payment.collector_id) === ownerMpUserId;
+    Boolean(ownerMpUserId) && String(payment.collector_id) === ownerMpUserId;
 
   // A propósito NO exigimos que la campaña siga 'published': el donante
   // pudo pagar mientras estaba publicada y que el dueño la cierre antes

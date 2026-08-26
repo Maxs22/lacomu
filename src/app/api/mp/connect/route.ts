@@ -19,7 +19,12 @@ export async function GET(request: Request) {
 
   // redirect_uri sí tiene que ser el dominio canónico registrado en la
   // app de Mercado Pago, no el Host del request.
-  const state = randomUUID();
+  //
+  // El state incluye el id del usuario que inició la vinculación: si entre
+  // /connect y /callback cambia la sesión (otro login en la misma
+  // computadora, sesión compartida), el callback lo detecta y aborta en
+  // vez de atar la cuenta de MP al perfil equivocado.
+  const state = `${user.id}.${randomUUID()}`;
   const redirectUri = `${getCanonicalOrigin(request)}/api/mp/callback`;
   const authorizeUrl = buildAuthorizeUrl({ redirectUri, state });
 
