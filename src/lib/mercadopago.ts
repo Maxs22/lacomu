@@ -10,6 +10,7 @@
  */
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { platformFeeFor } from "@/lib/fees";
 
 const MP_API = "https://api.mercadopago.com";
 
@@ -264,6 +265,9 @@ export async function createPreference({
         },
       ],
       external_reference: externalReference,
+      // Comisión de la plataforma. Es un MONTO absoluto, no un
+      // porcentaje: MP espera el valor ya calculado.
+      marketplace_fee: platformFeeFor(amount),
       back_urls: {
         success: `${origin}/campanas/${campaignId}?ayuda=exito`,
         pending: `${origin}/campanas/${campaignId}?ayuda=pendiente`,

@@ -32,7 +32,8 @@ Validar si desconocidos ayudan económicamente a personas u organizaciones con l
 - Login sin contraseña: OTP numérico por email (8 dígitos — el largo lo define Supabase en Authentication → Settings → Email OTP Length; si se cambia allá, actualizar CODE_LENGTH en src/app/ingresar/page.tsx). La pantalla se llama "Ingresar a lacomu" — no separar "Registrarse" de "Iniciar sesión".
 - Sin categoría fija: cada campaña define su propio motivo en título/descripción libre (necesidad personal, proyecto propio, apoyo a una organización, lo que sea). No hay taxonomía de categorías en el MVP.
 - Las campañas se publican solas, sin revisión manual: cada usuario carga su pedido y queda visible al toque. No hay panel de admin para aprobar/rechazar.
-- lacomu NO custodia fondos en el MVP. Mercado Pago se usa por reconciliación (preference/webhook/external_reference), pagando directo al beneficiario.
+- lacomu NO custodia fondos. Mercado Pago se usa por reconciliación (preference/webhook/external_reference), pagando directo al beneficiario.
+- Comisión de la plataforma: 1% vía `marketplace_fee` del modelo Marketplace de MP — MP hace el split solo, la plata nunca pasa por una cuenta nuestra. Se descuenta DESPUÉS de la comisión de Mercado Pago. Debe estar declarada en la UI antes de pagar y en /terminos: el donante tiene derecho a saber que no llega el 100%. La constante vive en src/lib/fees.ts.
 - No implementar: empleo, marketplace, chat, seguidores, puntos, wallet, ni ninguna funcionalidad que no valide la hipótesis central.
 - Tracking de "cadena de ayuda" (quién ayudó a quién) es best-effort, nunca bloqueante: se completa solo cuando el donante tiene cuenta o cuando el beneficiario vincula Mercado Pago vía OAuth Marketplace. Si no se puede rastrear, no se rastrea — no forzar login ni vinculación para permitir donar o crear campaña.
 

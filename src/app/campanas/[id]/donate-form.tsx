@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { PLATFORM_FEE_LABEL, platformFeeFor } from "@/lib/fees";
+import { formatCurrency } from "@/lib/format";
 
 export function DonateForm({ campaignId }: { campaignId: string }) {
   // Estable por render del form — si hay un retry de red o un doble
@@ -59,6 +62,7 @@ export function DonateForm({ campaignId }: { campaignId: string }) {
           type="number"
           inputMode="numeric"
           min={1}
+          step="0.01"
           required
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
@@ -90,6 +94,33 @@ export function DonateForm({ campaignId }: { campaignId: string }) {
         />
         Donar de forma anónima
       </label>
+
+      {/*
+        Se declara la comisión antes de pagar, no después: el donante tiene
+        derecho a saber que no llega el 100% de lo que pone. También se
+        aclara que Mercado Pago cobra lo suyo aparte, para no dar a entender
+        que el 1% es el único descuento.
+      */}
+      <p className="rounded-sm border border-border bg-background-card px-4 py-3 text-sm text-muted">
+        De lo que dones, lacomu se queda el{" "}
+        <strong className="text-foreground">{PLATFORM_FEE_LABEL}</strong>
+        {amount && Number(amount) > 0 ? (
+          <>
+            {" "}
+            (
+            {formatCurrency(platformFeeFor(Number(amount)), "ARS")})
+          </>
+        ) : null}{" "}
+        para sostener la plataforma. Mercado Pago cobra su propia comisión
+        aparte. El resto va directo a quien pidió la ayuda —{" "}
+        <Link
+          href="/terminos"
+          className="underline decoration-dotted underline-offset-2 hover:text-foreground"
+        >
+          cómo funciona
+        </Link>
+        .
+      </p>
 
       <button
         type="submit"

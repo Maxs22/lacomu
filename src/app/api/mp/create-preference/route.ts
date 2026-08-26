@@ -15,6 +15,21 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function parseDonationAmount(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  // Normalizar a centavos evita que precision de punto flotante o más de
+  // dos decimales lleguen a la base y a Mercado Pago como montos distintos.
+  const cents = Math.round(value * 100);
+  if (!Number.isSafeInteger(cents) || Math.abs(value * 100 - cents) > 1e-8) {
+    return null;
+  }
+
+  return cents / 100;
+}
+
 /**
  * Un claim se considera vencido pasado este tiempo: si el request que lo
  * tomó se murió a mitad de camino (timeout de la función, deploy, error
@@ -210,14 +225,14 @@ export async function POST(request: Request) {
     donorEmail,
     idempotencyKey,
   } = body;
+  const donationAmount = parseDonationAmount(amount);
 
-  if (
-    !campaignId ||
-    typeof campaignId !== "string" ||
-    !amount ||
-    Number(amount) <= 0
-  ) {
+  if (!campaignId || typeof campaignId !== "string") {
     return NextResponse.json({ error: "Faltan datos." }, { status: 400 });
+  }
+
+  if (donationAmount === null) {
+    return NextResponse.json({ error: "Monto inválido." }, { status: 400 });
   }
 
   // Obligatoria, no opcional: sin ella no hay forma de deduplicar y un
@@ -297,7 +312,7 @@ export async function POST(request: Request) {
         donor_email: donorEmail || null,
         donor_display_name: isAnonymous ? null : donorDisplayName || null,
         is_anonymous: Boolean(isAnonymous),
-        amount: Number(amount),
+        amount: donationAmount,
         currency: "ARS",
         status: "pending",
         idempotency_key: key,
@@ -428,7 +443,7 @@ export async function POST(request: Request) {
       preference = await createPreference({
         accessToken,
         title: campaign.title,
-        amount: Number(amount),
+        amount: donationAmount,
         externalReference: contribution.id,
         origin,
         campaignId,
@@ -458,7 +473,7 @@ export async function POST(request: Request) {
         preference = await createPreference({
           accessToken,
           title: campaign.title,
-          amount: Number(amount),
+          amount: donationAmount,
           externalReference: contribution.id,
           origin,
           campaignId,
@@ -530,15 +545,24 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ initPoint: preference.init_point });
-  } catch {
-    // MP rechazó la creación: no quedó ninguna preference, así que es
-    // seguro (y necesario) liberar el claim para que el usuario pueda
-    // reintentar sin esperar el TTL.
-    //
-    // Todo fenceado por token: si mientras tanto nuestro claim venció y
-    // otro request lo retomó, no tenemos que tocar NADA — ni el claim (le
-    // pertenece a él) ni el status (él puede estar por dejarlo en un
-    // estado válido). Un release sin fencing acá borraba el claim ajeno.
+  } catch (err) {
+    // Un timeout, 5xx o rate limit no prueba que MP no haya creado la
+    // preference. Conservamos el claim para que el retry la busque por
+    // external_reference antes de permitir otra creación.
+    const definitelyRejected =
+      err instanceof MpApiError && [400, 401, 403, 404, 422].includes(err.status);
+
+    if (!definitelyRejected) {
+      console.error("MP create-preference: resultado incierto", err);
+      return NextResponse.json(
+        { error: "No se pudo verificar el estado del pago. Probá de nuevo en un momento." },
+        { status: 503 },
+      );
+    }
+
+    // Estos códigos de cliente son rechazos definitivos: MP no creó la
+    // preference, así que liberamos el claim y marcamos el intento fallido.
+    // Todo fenceado por token para no tocar un claim que otro request retomó.
     const stillOurs = await releasePreferenceClaim(admin, contribution.id, claim.token);
 
     if (stillOurs) {
