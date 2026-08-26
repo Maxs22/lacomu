@@ -71,7 +71,7 @@ export default async function Home() {
       <main className="flex flex-col px-6 pt-4 pb-16 md:px-16 md:pt-10">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
           <h1 className="font-display text-4xl leading-[1.05] text-foreground sm:text-5xl md:text-6xl">
-            Ayudar a alguien no debería tener{" "}
+            Ayudar no debería tener{" "}
             <span className="italic text-primary">letra chica.</span>
           </h1>
 
