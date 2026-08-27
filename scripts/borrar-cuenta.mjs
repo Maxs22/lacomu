@@ -48,19 +48,29 @@ const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_RO
 const BUCKETS = ["avatars", "campaign-banners"];
 /** Tamaño de página de `list()`. */
 const PAGE = 100;
-/**
- * `remove()` acepta hasta 1.000 paths por llamada; 500 deja margen.
- *
- * Configurable solo para poder ejercitar el loop de lotes en una prueba sin
- * tener que subir 500 archivos.
- */
-const REMOVE_BATCH = Number(process.env.LACOMU_REMOVE_BATCH ?? 500);
+const MAX_REMOVE_BATCH = 1000;
 
 function abortar(motivo) {
   console.error(`\nABORTADO: ${motivo}`);
   console.error("No se borró el usuario. Revisar a mano antes de reintentar.");
   process.exit(1);
 }
+
+/** `remove()` acepta hasta 1.000 paths; validamos antes de tocar datos. */
+function readRemoveBatch() {
+  const raw = process.env.LACOMU_REMOVE_BATCH;
+  if (raw === undefined) return 500;
+
+  const batch = Number(raw);
+  if (!Number.isInteger(batch) || batch < 1 || batch > MAX_REMOVE_BATCH) {
+    abortar(
+      `LACOMU_REMOVE_BATCH debe ser un entero entre 1 y ${MAX_REMOVE_BATCH}; recibió "${raw}".`,
+    );
+  }
+  return batch;
+}
+
+const REMOVE_BATCH = readRemoveBatch();
 
 /**
  * Lista TODOS los objetos bajo una carpeta.

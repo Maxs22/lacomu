@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { CampaignCard } from "@/components/campaign-card";
 import { LogoMark } from "@/components/logo-mark";
+import { UserNav } from "@/components/user-nav";
 import { getPublishedCampaigns } from "@/lib/campaigns";
 
 const CHAIN_AVATARS = [
@@ -39,33 +40,7 @@ export default async function Home() {
           </span>
         </span>
 
-        {user ? (
-          <nav
-            aria-label="Tu cuenta"
-            className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 text-sm text-muted"
-          >
-            <Link
-              href="/mis-solicitudes"
-              className="underline decoration-dotted underline-offset-4 hover:text-foreground"
-            >
-              Mis solicitudes
-            </Link>
-            <Link
-              href="/perfil"
-              className="underline decoration-dotted underline-offset-4 hover:text-foreground"
-            >
-              Tu perfil
-            </Link>
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="underline decoration-dotted underline-offset-4 hover:text-foreground"
-              >
-                Cerrar sesión
-              </button>
-            </form>
-          </nav>
-        ) : null}
+        {user ? <UserNav signOut={signOut} /> : null}
       </header>
 
       <main className="flex flex-col px-6 pt-4 pb-16 md:px-16 md:pt-10">
