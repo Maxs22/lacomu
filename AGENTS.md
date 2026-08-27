@@ -95,18 +95,41 @@ Inspiración de simplicidad: Matecito. No diseñar como dashboard SaaS. Contenid
 
 ## Deploy
 
-El repo está conectado al proyecto de Vercel, así que **cada push a `main`
-deploya a producción solo**. No hace falta `vercel deploy`.
+**Producción se actualiza SOLO con aprobación explícita del dueño del
+proyecto. Un push no es una aprobación.**
 
-Esto se conectó recién el 26/08 y su ausencia causó un problema real: durante
-un día producción sirvió un build viejo con el login roto (pedía 6 dígitos
-cuando Supabase manda 8), porque los pushes no disparaban nada y nadie
-ejecutaba el deploy a mano. Si vuelve a aparecer una diferencia entre lo que
-está en `main` y lo que sirve el dominio, lo primero a revisar es si esa
-conexión sigue en pie.
+Los pushes no deployan nada: la integración de git con Vercel está
+desconectada a propósito, y `vercel.json` además declara
+`git.deploymentEnabled.main: false` como segunda barrera.
+
+Para publicar, una vez aprobado:
+
+    vercel deploy --prod
+
+**No re-habilitar el auto-deploy.** Estuvo activo el 26/08 y el resultado
+fue que cada push iba a producción sin que nadie lo pidiera.
+
+Contracara a tener en cuenta: sin auto-deploy, `main` y producción pueden
+divergir. Ya pasó — durante un día producción sirvió un build viejo con el
+login roto (pedía 6 dígitos cuando Supabase manda 8) porque nadie corrió el
+deploy. Si aparece una diferencia entre lo que está en `main` y lo que
+sirve el dominio, es esto: hay que pedir aprobación y deployar, no
+re-conectar git.
+
+### Orden al deployar cambios de base
+
+Migración primero, código después. Si se pushea/deploya código que usa una
+tabla cuya migración todavía no se aplicó, producción queda leyendo algo
+que no existe. Ya estuvo a punto de pasar con `campaign_stats`.
 
 Las variables `NEXT_PUBLIC_*` se compilan dentro del build: cambiarlas en
 Vercel no tiene efecto hasta que haya un deploy nuevo.
+
+### Cuidado con `node -e` y backticks en bash
+
+Un script con backticks dentro de `node -e "..."` en bash hace que bash los
+ejecute como comandos. Así se disparó un `vercel deploy` accidental. Para
+escribir archivos con backticks, usar el editor de archivos, no bash.
 
 ## Workflow de agentes/IA
 
