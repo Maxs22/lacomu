@@ -9,10 +9,12 @@ export type CampaignItem = {
 
 export type Campaign = {
   id: string;
+  slug: string;
   title: string;
   description: string;
   ownerName: string;
   ownerAvatarUrl: string | null;
+  ownerHandle: string | null;
   coverImageUrl: string | null;
   goalAmount: number;
   raisedAmount: number;
@@ -66,7 +68,7 @@ export async function getPublishedCampaigns(): Promise<Campaign[]> {
   const { data, error } = await supabase
     .from("campaigns")
     .select(
-      "id, title, description, goal_amount, cover_image_url, items:campaign_items(description, amount), owner:profiles!owner_id(full_name, avatar_url)",
+      "id, slug, title, description, goal_amount, cover_image_url, items:campaign_items(description, amount), owner:profiles!owner_id(full_name, avatar_url, handle)",
     )
     .eq("status", "published")
     .order("published_at", { ascending: false });
@@ -75,10 +77,12 @@ export async function getPublishedCampaigns(): Promise<Campaign[]> {
 
   const base = data.map((row) => ({
     id: row.id,
+    slug: row.slug,
     title: row.title,
     description: row.description,
     ownerName: unwrapOne(row.owner)?.full_name ?? "Alguien de la comunidad",
     ownerAvatarUrl: unwrapOne(row.owner)?.avatar_url ?? null,
+    ownerHandle: unwrapOne(row.owner)?.handle ?? null,
     coverImageUrl: row.cover_image_url,
     goalAmount: Number(row.goal_amount ?? 0),
     currency: "ARS",
@@ -89,22 +93,96 @@ export async function getPublishedCampaigns(): Promise<Campaign[]> {
   return attachContributionStats(base);
 }
 
+const DETAIL_SELECT =
+  "id, slug, title, description, goal_amount, cover_image_url, owner_id, items:campaign_items(description, amount), owner:profiles!owner_id(full_name, avatar_url, handle)";
+
+/**
+ * La URL canónica de una campaña es /{handle}/{slug}. Se filtra por el
+ * handle del dueño además del slug para que el link sea verificable: si
+ * alguien arma /otra-persona/mi-pedido, no resuelve.
+ */
+export async function getCampaignByHandleAndSlug(
+  handle: string,
+  slug: string,
+): Promise<Campaign | null> {
+  const supabase = await createClient();
+
+  const { data: perfil } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("handle", handle.toLowerCase())
+    .maybeSingle();
+
+  if (!perfil) return null;
+
+  const { data: row, error } = await supabase
+    .from("campaigns")
+    .select(DETAIL_SELECT)
+    .eq("owner_id", perfil.id)
+    .eq("slug", slug)
+    .eq("status", "published")
+    .maybeSingle();
+
+  if (error || !row) return null;
+  return hydrate(row);
+}
+
+/**
+ * Solo para redirigir links viejos: /campanas/<uuid> se compartió antes de
+ * que existieran los handles, así que tiene que seguir resolviendo.
+ */
+export async function getCampaignPathById(
+  id: string,
+): Promise<{ handle: string; slug: string } | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("campaigns")
+    .select("slug, owner:profiles!owner_id(handle)")
+    .eq("id", id)
+    .eq("status", "published")
+    .maybeSingle();
+
+  const handle = unwrapOne(data?.owner)?.handle;
+  if (!data?.slug || !handle) return null;
+  return { handle, slug: data.slug };
+}
+
 export async function getCampaignById(id: string): Promise<Campaign | null> {
   const supabase = await createClient();
 
   const { data: row, error } = await supabase
     .from("campaigns")
-    .select(
-      "id, title, description, goal_amount, cover_image_url, owner_id, items:campaign_items(description, amount), owner:profiles!owner_id(full_name, avatar_url)",
-    )
+    .select(DETAIL_SELECT)
     .eq("id", id)
     .eq("status", "published")
     .single();
 
   if (error || !row) return null;
+  return hydrate(row);
+}
 
-  // mp_connections no tiene RLS pública a propósito — solo el admin
-  // client puede leerla, y acá solo nos importa si existe o no la fila.
+type OwnerEmbed = {
+  full_name: string | null;
+  avatar_url: string | null;
+  handle: string | null;
+};
+
+type DetailRow = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  goal_amount: number | null;
+  cover_image_url: string | null;
+  owner_id: string;
+  items: CampaignItem[] | null;
+  owner: OwnerEmbed | OwnerEmbed[] | null;
+};
+
+/** Arma el objeto Campaign a partir de una fila del select de detalle. */
+async function hydrate(row: DetailRow): Promise<Campaign> {
+  // mp_connections no tiene policies de RLS a propósito — solo el service
+  // role la lee, y acá solo importa si existe la fila o no.
   const admin = createAdminClient();
   const { data: connection } = await admin
     .from("mp_connections")
@@ -112,12 +190,16 @@ export async function getCampaignById(id: string): Promise<Campaign | null> {
     .eq("profile_id", row.owner_id)
     .maybeSingle();
 
+  const owner = unwrapOne(row.owner);
+
   const base = {
     id: row.id,
+    slug: row.slug,
     title: row.title,
     description: row.description,
-    ownerName: unwrapOne(row.owner)?.full_name ?? "Alguien de la comunidad",
-    ownerAvatarUrl: unwrapOne(row.owner)?.avatar_url ?? null,
+    ownerName: owner?.full_name ?? "Alguien de la comunidad",
+    ownerAvatarUrl: owner?.avatar_url ?? null,
+    ownerHandle: owner?.handle ?? null,
     coverImageUrl: row.cover_image_url,
     goalAmount: Number(row.goal_amount ?? 0),
     currency: "ARS",

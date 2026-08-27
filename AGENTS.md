@@ -54,6 +54,24 @@ Reglas de RLS mínimas:
 - El creador gestiona sus propias `campaigns` / `campaign_applications`. Las `campaign_applications` nacen ya `approved` (default de columna) y un trigger las publica como `campaigns` en el mismo insert — no hay paso de aprobación humana.
 - `contributions`: cualquiera puede insertar una donación a una campaña publicada, pero SOLO con `status = 'pending'` (forzado en el `with check` de la policy) — confirmar/rechazar el pago (`status = 'confirmed'/'failed'`) lo hace exclusivamente el webhook de Mercado Pago con el service role, nunca un insert/update de cliente. No exponer email ni datos privados en lectura pública; respetar el flag de donante anónimo.
 
+## URLs
+
+Cada persona tiene un handle y su espacio vive en la raíz:
+
+-  — su perfil público con sus pedidos
+-  — un pedido puntual (URL canónica)
+-  — legacy, redirige 308 a la canónica. NO
+  borrar: esos links se compartieron antes de que existieran los handles.
+
+El handle se genera del email al registrarse (trigger ) y
+se puede cambiar desde /perfil. El slug del pedido se genera del título una
+sola vez y NO se recalcula si el título cambia: romper un link ya
+compartido es peor que tener un slug desactualizado.
+
+**Al agregar una ruta estática nueva en la raíz**, sumar su nombre a la
+tabla . Si no, alguien puede tomarlo como handle y su
+perfil queda inalcanzable (Next da precedencia a la ruta estática).
+
 ## UX
 
 Inspiración de simplicidad: Matecito. No diseñar como dashboard SaaS. Contenido y personas primero, mucho espacio, fotos grandes, CTA claro.

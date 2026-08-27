@@ -19,7 +19,7 @@ export default async function PerfilPage({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, avatar_url")
+    .select("full_name, avatar_url, handle")
     .eq("id", user.id)
     .single();
 
@@ -54,6 +54,7 @@ export default async function PerfilPage({
             userId={user.id}
             initialFullName={profile?.full_name ?? null}
             initialAvatarUrl={profile?.avatar_url ?? null}
+            initialHandle={profile?.handle ?? ""}
           />
 
           <div className="flex flex-col gap-3 border-t border-border pt-6">
@@ -82,6 +83,14 @@ export default async function PerfilPage({
                   Para que las donaciones lleguen directo a tu cuenta,
                   vinculá Mercado Pago. lacomu nunca toca esa plata.
                 </p>
+                {/*
+                  <a> y no <Link> a propósito: /api/mp/connect es un Route
+                  Handler que responde con un redirect a Mercado Pago.
+                  <Link> haría navegación del lado del cliente y no seguiría
+                  ese redirect. El lint lo marca porque el catch-all
+                  [handle] le hace creer que es una página.
+                */}
+                {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
                 <a
                   href="/api/mp/connect"
                   className="w-fit rounded-sm bg-primary px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-primary-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-transform hover:-translate-y-0.5 hover:shadow-[4px_4px_0_0_var(--color-foreground)]"

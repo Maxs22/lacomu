@@ -8,7 +8,13 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
 
   return (
     <Link
-      href={`/campanas/${campaign.id}`}
+      // La URL canónica es /{handle}/{slug}. Si por algún motivo la
+      // campaña no tiene handle, se cae al link viejo por id, que redirige.
+      href={
+        campaign.ownerHandle
+          ? `/${campaign.ownerHandle}/${campaign.slug}`
+          : `/campanas/${campaign.id}`
+      }
       className="group flex flex-col overflow-hidden rounded-sm border-2 border-border bg-background-card transition-transform hover:-translate-y-0.5"
     >
       <div className={`h-32 ${campaign.coverImageUrl ? "" : `flex items-center justify-center ${toneClass}`}`}>

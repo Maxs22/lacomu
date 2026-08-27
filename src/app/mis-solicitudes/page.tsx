@@ -17,10 +17,17 @@ export default async function MisSolicitudesPage() {
   const { data: applications } = await supabase
     .from("campaign_applications")
     .select(
-      "id, title, description, goal_amount, status, rejection_reason, created_at, campaigns(id)",
+      "id, title, description, goal_amount, status, rejection_reason, created_at, campaigns(id, slug)",
     )
     .eq("applicant_id", user.id)
     .order("created_at", { ascending: false });
+
+  const { data: perfil } = await supabase
+    .from("profiles")
+    .select("handle")
+    .eq("id", user.id)
+    .maybeSingle();
+  const handle = perfil?.handle ?? null;
 
   return (
     <div className="relative z-[1] flex flex-1 flex-col">
@@ -60,7 +67,7 @@ export default async function MisSolicitudesPage() {
           ) : (
             <ul className="flex flex-col gap-4">
               {applications.map((app) => {
-                const campaignId = app.campaigns?.[0]?.id;
+                const campana = app.campaigns?.[0];
                 return (
                   <li
                     key={app.id}
@@ -85,9 +92,13 @@ export default async function MisSolicitudesPage() {
                         Motivo: {app.rejection_reason}
                       </p>
                     ) : null}
-                    {app.status === "approved" && campaignId ? (
+                    {app.status === "approved" && campana ? (
                       <Link
-                        href={`/campanas/${campaignId}`}
+                        href={
+                          handle
+                            ? `/${handle}/${campana.slug}`
+                            : `/campanas/${campana.id}`
+                        }
                         className="mt-1 w-fit text-sm font-semibold text-primary underline decoration-dotted underline-offset-4"
                       >
                         Ver campaña publicada →
