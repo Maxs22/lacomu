@@ -284,11 +284,11 @@ export async function POST(request: Request) {
 
   const { data: connection } = await admin
     .from("mp_connections")
-    .select("access_token, refresh_token")
+    .select("access_token, refresh_token, mp_user_id")
     .eq("profile_id", campaign.owner_id)
     .single();
 
-  if (!connection) {
+  if (!connection?.mp_user_id) {
     return NextResponse.json(
       { error: "Esta persona todavía no vinculó Mercado Pago." },
       { status: 409 },
@@ -334,6 +334,12 @@ export async function POST(request: Request) {
         currency: "ARS",
         status: "pending",
         idempotency_key: key,
+        // Se congela el collector con el que se arma este checkout. El
+        // webhook compara contra ESTE, no contra la conexión vigente al
+        // momento de la notificación: si el beneficiario reconecta Mercado
+        // Pago con otra cuenta, los pagos en vuelo hacia la cuenta anterior
+        // seguían siendo legítimos y se leían como mismatch.
+        mp_collector_id: connection.mp_user_id,
       })
       .select("id")
       .single();

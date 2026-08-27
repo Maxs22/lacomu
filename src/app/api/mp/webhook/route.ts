@@ -1,74 +1,27 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { unwrapOne } from "@/lib/supabase/embed";
 import {
   getAppAccessToken,
   getPayment,
   isValidWebhookSignature,
 } from "@/lib/mercadopago";
 
-type AdminClient = ReturnType<typeof createAdminClient>;
-
-async function recordWebhookEvent(
-  admin: AdminClient,
-  {
-    paymentId,
-    contributionId,
-    paymentStatus,
-    reconciliationStatus,
-  }: {
-    paymentId: string;
-    contributionId: string;
-    paymentStatus: string;
-    reconciliationStatus: "settled" | "duplicate" | "mismatch";
-  },
-) {
-  const { error } = await admin.from("mp_webhook_events").upsert(
-    {
-      payment_id: paymentId,
-      contribution_id: contributionId,
-      payment_status: paymentStatus,
-      reconciliation_status: reconciliationStatus,
-      last_seen_at: new Date().toISOString(),
-    },
-    { onConflict: "payment_id" },
-  );
-  return error;
-}
-
-async function refreshCampaignStats(admin: AdminClient, campaignId: string) {
-  const { data: contributions, error: contributionsError } = await admin
-    .from("contributions")
-    .select("amount")
-    .eq("campaign_id", campaignId)
-    .eq("status", "confirmed");
-  if (contributionsError) return contributionsError;
-
-  const raisedAmount = (contributions ?? []).reduce(
-    (total, contribution) => total + Number(contribution.amount),
-    0,
-  );
-  const { error: statsError } = await admin.from("campaign_stats").upsert(
-    {
-      campaign_id: campaignId,
-      raised_amount: raisedAmount,
-      contributors_count: contributions?.length ?? 0,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "campaign_id" },
-  );
-  return statsError;
-}
-
 /**
  * Mercado Pago pega acá cuando cambia el estado de un pago.
  *
- * Import: devolver 200 significa "recibido, no reintentes". Eso está bien
- * cuando decidimos A PROPÓSITO no confirmar algo (mismatch real), pero
- * NUNCA cuando fue un error transitorio nuestro (API de MP caída,
- * Supabase con un hipo) — ahí hay que devolver un status de error para
- * que MP reintente, si no un pago approved puede quedar pending para
- * siempre sin que nadie se entere.
+ * Importante: devolver 200 significa "recibido, no reintentes". Eso está
+ * bien cuando decidimos A PROPÓSITO no confirmar algo (un mismatch real),
+ * pero NUNCA cuando fue un error transitorio nuestro (API de MP caída,
+ * Supabase con un hipo) — ahí hay que devolver un status de error para que
+ * MP reintente, si no un pago approved puede quedar pending para siempre
+ * sin que nadie se entere.
+ *
+ * Toda la conciliación (reconciliar montos, decidir si un pago nuevo
+ * reemplaza al anterior, recalcular los totales de la campaña) vive en la
+ * función `settle_mp_payment` de la base, en UNA transacción. Antes estaba
+ * acá repartida en varios requests a PostgREST y eso dejaba dos agujeros:
+ * los totales podían quedar mal para siempre si el segundo request fallaba,
+ * y dos pagos concurrentes de la misma campaña se pisaban los totales.
  */
 export async function POST(request: Request) {
   const url = new URL(request.url);
@@ -131,139 +84,80 @@ export async function POST(request: Request) {
 
   const admin = createAdminClient();
 
-  let contribution;
-  try {
-    const { data, error } = await admin
-      .from("contributions")
-      .select(
-        "id, campaign_id, amount, currency, status, mp_payment_id, campaigns(owner:profiles!owner_id(mp_connections(mp_user_id)))",
-      )
-      .eq("id", payment.external_reference)
-      .single();
-    if (error) throw error;
-    contribution = data;
-  } catch (err) {
-    console.error("MP webhook: fallo transitorio leyendo la contribution", err);
-    return NextResponse.json({ error: "No se pudo leer la contribución." }, { status: 502 });
-  }
-
-  if (!contribution) {
-    // El external_reference no corresponde a ninguna contribution nuestra
-    // — esto sí es definitivo, reintentar no cambia nada.
-    return NextResponse.json({ ok: true });
-  }
-
-  // Todos estos embeds vienen como objeto en runtime (to-one real, ya sea
-  // porque la FK vive acá o porque el otro lado tiene una unique/PK) —
-  // ver src/lib/supabase/embed.ts, verificado contra la base real.
-  const campaign = unwrapOne(contribution.campaigns);
-  const owner = unwrapOne(campaign?.owner);
-  const ownerMpUserId = unwrapOne(owner?.mp_connections)?.mp_user_id;
-
-  const amountMatches =
-    Math.abs(Number(payment.transaction_amount) - Number(contribution.amount)) < 0.01;
-  const currencyMatches = payment.currency_id === contribution.currency;
-
-  // Fail CLOSED si no encontramos el mp_user_id del beneficiario: antes
-  // (`!ownerMpUserId || ...`) la falta de conexión hacía pasar cualquier
-  // collector, que es justo lo contrario de lo que este chequeo existe
-  // para hacer. Y no puede haber un pago legítimo sin conexión: sin ella
-  // create-preference nunca habría podido crear la preference.
-  const collectorMatches =
-    Boolean(ownerMpUserId) && String(payment.collector_id) === ownerMpUserId;
-
-  // A propósito NO exigimos que la campaña siga 'published': el donante
-  // pudo pagar mientras estaba publicada y que el dueño la cierre antes
-  // de que llegue esta notificación. Eso no invalida un cobro real — si
-  // lo exigiéramos, quedaría plata cobrada y nunca acreditada.
-  if (!amountMatches || !currencyMatches || !collectorMatches) {
-    const eventError = await recordWebhookEvent(admin, {
-      paymentId: String(payment.id),
-      contributionId: contribution.id,
-      paymentStatus: payment.status,
-      reconciliationStatus: "mismatch",
-    });
-    if (eventError) {
-      console.error("MP webhook: fallo guardando mismatch", eventError);
-      return NextResponse.json({ error: "No se pudo registrar el pago." }, { status: 502 });
-    }
-
-    // Es definitivo para este pago, pero queda registrado para poder
-    // reconciliarlo en vez de perderlo tras responder 200 a MP.
-    console.error("MP webhook: mismatch de reconciliación", {
-      paymentId: payment.id,
-      contributionId: contribution.id,
-      amountMatches,
-      currencyMatches,
-      collectorMatches,
-    });
-    return NextResponse.json({ ok: true });
-  }
-
-  if (
-    contribution.mp_payment_id &&
-    contribution.mp_payment_id !== String(payment.id)
-  ) {
-    const eventError = await recordWebhookEvent(admin, {
-      paymentId: String(payment.id),
-      contributionId: contribution.id,
-      paymentStatus: payment.status,
-      reconciliationStatus: "duplicate",
-    });
-    if (eventError) {
-      console.error("MP webhook: fallo guardando pago duplicado", eventError);
-      return NextResponse.json({ error: "No se pudo registrar el pago." }, { status: 502 });
-    }
-
-    // Nunca sobrescribimos el primer pago asociado a una contribution.
-    // Este evento queda disponible para resolver el cobro duplicado fuera
-    // del webhook (lacomu no puede devolver fondos directamente).
-    console.error("MP webhook: pago adicional para la misma contribution", {
-      paymentId: payment.id,
-      contributionId: contribution.id,
-      settledPaymentId: contribution.mp_payment_id,
-    });
-    return NextResponse.json({ ok: true });
-  }
-
-  const status =
-    payment.status === "approved"
-      ? "confirmed"
-      : payment.status === "rejected" || payment.status === "cancelled"
-        ? "failed"
-        : "pending";
-
-  const { error: updateError } = await admin
-    .from("contributions")
-    .update({
-      status,
-      mp_payment_id: String(payment.id),
-      confirmed_at: status === "confirmed" ? new Date().toISOString() : null,
-    })
-    .eq("id", contribution.id);
-
-  if (updateError) {
-    console.error("MP webhook: fallo transitorio guardando el estado", updateError);
-    return NextResponse.json({ error: "No se pudo guardar el estado." }, { status: 502 });
-  }
-
-  if (contribution.status !== status) {
-    const statsError = await refreshCampaignStats(admin, contribution.campaign_id);
-    if (statsError) {
-      console.error("MP webhook: fallo actualizando los totales", statsError);
-      return NextResponse.json({ error: "No se pudieron actualizar los totales." }, { status: 502 });
-    }
-  }
-
-  const eventError = await recordWebhookEvent(admin, {
-    paymentId: String(payment.id),
-    contributionId: contribution.id,
-    paymentStatus: payment.status,
-    reconciliationStatus: "settled",
+  const { data: outcome, error } = await admin.rpc("settle_mp_payment", {
+    p_contribution_id: payment.external_reference,
+    p_payment_id: String(payment.id),
+    p_payment_status: payment.status,
+    p_transaction_amount: payment.transaction_amount,
+    p_currency: payment.currency_id,
+    p_collector_id:
+      payment.collector_id === null || payment.collector_id === undefined
+        ? null
+        : String(payment.collector_id),
   });
-  if (eventError) {
-    console.error("MP webhook: fallo guardando evento", eventError);
-    return NextResponse.json({ error: "No se pudo registrar el pago." }, { status: 502 });
+
+  if (error) {
+    // No sabemos si la transacción llegó a commitear. Es justo el caso en
+    // que hay que pedirle a MP que reintente: la función es idempotente,
+    // así que un segundo intento converge al mismo estado.
+    console.error("MP webhook: fallo conciliando el pago", error);
+    return NextResponse.json({ error: "No se pudo conciliar el pago." }, { status: 502 });
+  }
+
+  // A partir de acá la decisión ya está tomada y persistida. Todos estos
+  // resultados son definitivos: reintentar no cambiaría nada, así que 200.
+  switch (outcome) {
+    case "settled":
+      break;
+
+    case "superseded_previous":
+      // Reintento de pago sobre la misma preference: el intento anterior
+      // no había movido plata y este sí. Se registra porque conviene poder
+      // verlo al reconciliar.
+      console.warn("MP webhook: un pago nuevo reemplazó al intento anterior", {
+        paymentId: payment.id,
+        contributionId: payment.external_reference,
+      });
+      break;
+
+    case "duplicate":
+      // Dos pagos aprobados para la misma donación. No se pisa el que ya
+      // está asentado; queda en mp_webhook_events para resolverlo fuera
+      // del webhook (lacomu no puede devolver fondos).
+      console.error("MP webhook: pago adicional para la misma contribution", {
+        paymentId: payment.id,
+        contributionId: payment.external_reference,
+      });
+      break;
+
+    case "mismatch":
+      console.error("MP webhook: mismatch de reconciliación", {
+        paymentId: payment.id,
+        contributionId: payment.external_reference,
+        status: payment.status,
+      });
+      break;
+
+    case "unknown_contribution":
+      // El external_reference no corresponde a ninguna contribution
+      // nuestra. Definitivo: reintentar no cambia nada.
+      console.error("MP webhook: external_reference desconocido", {
+        paymentId: payment.id,
+        externalReference: payment.external_reference,
+      });
+      break;
+
+    default:
+      // Un resultado que no conocemos significa que la función de la base
+      // cambió y este código quedó atrás. No lo tratamos como éxito.
+      console.error("MP webhook: resultado inesperado de settle_mp_payment", {
+        outcome,
+        paymentId: payment.id,
+      });
+      return NextResponse.json(
+        { error: "Resultado de conciliación inesperado." },
+        { status: 500 },
+      );
   }
 
   return NextResponse.json({ ok: true });
