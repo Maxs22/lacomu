@@ -225,7 +225,7 @@ export async function createPreference({
   amount,
   externalReference,
   origin,
-  campaignId,
+  campaignPath,
   idempotencyKey,
 }: {
   accessToken: string;
@@ -233,7 +233,15 @@ export async function createPreference({
   amount: number;
   externalReference: string;
   origin: string;
-  campaignId: string;
+  /**
+   * Path canonico de la campana, ej. "/maxsdev/necesito-un-taladro".
+   *
+   * Antes se armaba /campanas/{id}, que hoy es una ruta legacy que
+   * redirige. Ese redirect perdia el ?ayuda=..., asi que el donante volvia
+   * de pagar y no veia ningun aviso. Apuntando directo a la canonica no
+   * hay redirect en el medio del flujo de pago.
+   */
+  campaignPath: string;
   /**
    * X-Idempotency-Key: MP dedupe del lado de ellos. Es la defensa más
    * fuerte contra crear dos preferences para la misma intención, porque
@@ -269,9 +277,9 @@ export async function createPreference({
       // porcentaje: MP espera el valor ya calculado.
       marketplace_fee: platformFeeFor(amount),
       back_urls: {
-        success: `${origin}/campanas/${campaignId}?ayuda=exito`,
-        pending: `${origin}/campanas/${campaignId}?ayuda=pendiente`,
-        failure: `${origin}/campanas/${campaignId}?ayuda=error`,
+        success: `${origin}${campaignPath}?ayuda=exito`,
+        pending: `${origin}${campaignPath}?ayuda=pendiente`,
+        failure: `${origin}${campaignPath}?ayuda=error`,
       },
       auto_return: "approved",
       notification_url: `${origin}/api/mp/webhook`,

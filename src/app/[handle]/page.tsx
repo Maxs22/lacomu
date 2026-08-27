@@ -1,7 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import type { Metadata } from "next";
-import { getProfileByHandle, getCampaignsByProfile } from "@/lib/profiles";
+import {
+  getProfileByHandle,
+  getCampaignsByProfile,
+  getCurrentHandleFor,
+} from "@/lib/profiles";
 import { CampaignCard } from "@/components/campaign-card";
 import { LogoMark } from "@/components/logo-mark";
 
@@ -40,6 +44,13 @@ export default async function PerfilPublicoPage({
   const profile = await getProfileByHandle(handle);
 
   if (!profile) {
+    // Puede ser un handle que esta persona dejó al renombrarse: en ese caso
+    // el link compartido sigue siendo válido, solo hay que llevarlo al
+    // nuevo. Si se retiró por borrado de cuenta, no hay destino y es 404.
+    const actual = await getCurrentHandleFor(handle);
+    if (actual) {
+      permanentRedirect(`/${actual}`);
+    }
     notFound();
   }
 

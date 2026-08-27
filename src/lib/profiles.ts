@@ -17,6 +17,27 @@ function toneFromId(id: string): "primary" | "secondary" {
   return sum % 2 === 0 ? "primary" : "secondary";
 }
 
+/**
+ * Si el handle fue retirado por un renombre, devuelve el handle actual de
+ * esa persona para poder redirigir. Un handle retirado por borrado de
+ * cuenta devuelve null: no hay a dónde mandar a nadie.
+ *
+ * Esto es lo que hace que renombrarse no rompa los links ya compartidos.
+ */
+export async function getCurrentHandleFor(
+  retiredHandle: string,
+): Promise<string | null> {
+  const supabase = await createClient();
+
+  const { data } = await supabase
+    .from("retired_handles")
+    .select("profile:profiles!profile_id(handle)")
+    .eq("handle", retiredHandle.toLowerCase())
+    .maybeSingle();
+
+  return unwrapOne(data?.profile)?.handle ?? null;
+}
+
 export async function getProfileByHandle(
   handle: string,
 ): Promise<PublicProfile | null> {

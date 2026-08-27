@@ -55,7 +55,11 @@ export function PerfilForm({
       // errores distintos; se traducen a algo que se entienda en vez de
       // mostrar el mensaje de Postgres.
       const msg = updateError.message.toLowerCase();
-      if (msg.includes("reservado")) {
+      if (msg.includes("retirado")) {
+        setHandleError(
+          "Ese nombre lo usó otra persona antes. Para no romper links que ya compartió, no se puede reutilizar.",
+        );
+      } else if (msg.includes("reservado")) {
         setHandleError("Ese nombre está reservado por el sitio. Probá otro.");
       } else if (msg.includes("duplicate") || msg.includes("unique")) {
         setHandleError("Ya lo está usando otra persona. Probá otro.");

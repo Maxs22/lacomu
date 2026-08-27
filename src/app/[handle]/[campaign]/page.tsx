@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { getCampaignByHandleAndSlug } from "@/lib/campaigns";
+import { getCurrentHandleFor } from "@/lib/profiles";
 import { formatCurrency } from "@/lib/format";
 import { ProgressBar } from "@/components/progress-bar";
 import { DonateForm } from "./donate-form";
@@ -38,6 +39,12 @@ export default async function CampaignDetailPage({
   const campaign = await getCampaignByHandleAndSlug(handle, campaignSlug);
 
   if (!campaign) {
+    // Mismo caso que en el perfil: el link puede apuntar a un handle que la
+    // persona dejó al renombrarse.
+    const actual = await getCurrentHandleFor(handle);
+    if (actual && actual !== handle) {
+      permanentRedirect(`/${actual}/${campaignSlug}`);
+    }
     notFound();
   }
 

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { unwrapOne } from "@/lib/supabase/embed";
 import {
   createPreference,
   getPreference,
@@ -256,13 +257,30 @@ export async function POST(request: Request) {
 
   const { data: campaign } = await admin
     .from("campaigns")
-    .select("id, title, owner_id, status")
+    .select("id, slug, title, owner_id, status, owner:profiles!owner_id(handle)")
     .eq("id", campaignId)
     .single();
 
   if (!campaign || campaign.status !== "published") {
     return NextResponse.json({ error: "Campaña no encontrada." }, { status: 404 });
   }
+
+  // Las back_urls de MP apuntan a la URL canónica /{handle}/{slug}, no a
+  // /campanas/{id}: esa es legacy y su redirect perdía el ?ayuda=..., así
+  // que el donante volvía de pagar sin ver ningún aviso.
+  const ownerHandle = unwrapOne(campaign.owner)?.handle;
+  if (!ownerHandle || !campaign.slug) {
+    console.error("MP create-preference: campaña sin handle o slug", {
+      campaignId,
+      ownerHandle,
+      slug: campaign.slug,
+    });
+    return NextResponse.json(
+      { error: "No se pudo armar el link de retorno." },
+      { status: 500 },
+    );
+  }
+  const campaignPath = `/${ownerHandle}/${campaign.slug}`;
 
   const { data: connection } = await admin
     .from("mp_connections")
@@ -448,7 +466,7 @@ export async function POST(request: Request) {
         amount: donationAmount,
         externalReference: contribution.id,
         origin,
-        campaignId,
+        campaignPath,
         idempotencyKey: mpIdempotencyKey,
       });
     } catch (err) {
@@ -478,7 +496,7 @@ export async function POST(request: Request) {
           amount: donationAmount,
           externalReference: contribution.id,
           origin,
-          campaignId,
+          campaignPath,
           idempotencyKey: mpIdempotencyKey,
         });
       } else {
