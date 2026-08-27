@@ -8,6 +8,7 @@ import {
 } from "@/lib/profiles";
 import { CampaignCard } from "@/components/campaign-card";
 import { LogoMark } from "@/components/logo-mark";
+import { queryStringFrom } from "@/lib/query";
 
 /**
  * Página pública de una persona: lacomu.ar/maxsdev
@@ -39,8 +40,10 @@ export async function generateMetadata({
 
 export default async function PerfilPublicoPage({
   params,
+  searchParams,
 }: PageProps<"/[handle]">) {
   const { handle } = await params;
+  const query = await searchParams;
   const profile = await getProfileByHandle(handle);
 
   if (!profile) {
@@ -49,7 +52,7 @@ export default async function PerfilPublicoPage({
     // nuevo. Si se retiró por borrado de cuenta, no hay destino y es 404.
     const actual = await getCurrentHandleFor(handle);
     if (actual) {
-      permanentRedirect(`/${actual}`);
+      permanentRedirect(`/${actual}${queryStringFrom(query)}`);
     }
     notFound();
   }

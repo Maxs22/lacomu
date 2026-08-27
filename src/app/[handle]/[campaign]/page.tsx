@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { getCampaignByHandleAndSlug } from "@/lib/campaigns";
 import { getCurrentHandleFor } from "@/lib/profiles";
+import { queryStringFrom } from "@/lib/query";
 import { formatCurrency } from "@/lib/format";
 import { ProgressBar } from "@/components/progress-bar";
 import { DonateForm } from "./donate-form";
@@ -35,7 +36,8 @@ export default async function CampaignDetailPage({
   searchParams,
 }: PageProps<"/[handle]/[campaign]">) {
   const { handle, campaign: campaignSlug } = await params;
-  const { ayuda } = await searchParams;
+  const query = await searchParams;
+  const { ayuda } = query;
   const campaign = await getCampaignByHandleAndSlug(handle, campaignSlug);
 
   if (!campaign) {
@@ -43,7 +45,10 @@ export default async function CampaignDetailPage({
     // persona dejó al renombrarse.
     const actual = await getCurrentHandleFor(handle);
     if (actual && actual !== handle) {
-      permanentRedirect(`/${actual}/${campaignSlug}`);
+      // Se preserva el query: si el donante vuelve de Mercado Pago con
+      // ?ayuda=... justo cuando esta persona se renombró, descartarlo lo
+      // dejaría sin saber si su pago se registró.
+      permanentRedirect(`/${actual}/${campaignSlug}${queryStringFrom(query)}`);
     }
     notFound();
   }

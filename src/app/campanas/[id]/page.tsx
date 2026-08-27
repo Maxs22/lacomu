@@ -1,5 +1,6 @@
 import { notFound, permanentRedirect } from "next/navigation";
 import { getCampaignPathById } from "@/lib/campaigns";
+import { queryStringFrom } from "@/lib/query";
 
 /**
  * Ruta legacy. Antes de que existieran los handles, las campañas se
@@ -24,12 +25,7 @@ export default async function CampanaLegacyPage({
     notFound();
   }
 
-  const qs = new URLSearchParams();
-  for (const [clave, valor] of Object.entries(query)) {
-    if (typeof valor === "string") qs.set(clave, valor);
-    else if (Array.isArray(valor)) valor.forEach((v) => qs.append(clave, v));
-  }
-
-  const sufijo = qs.size > 0 ? `?${qs}` : "";
-  permanentRedirect(`/${destino.handle}/${destino.slug}${sufijo}`);
+  permanentRedirect(
+    `/${destino.handle}/${destino.slug}${queryStringFrom(query)}`,
+  );
 }
