@@ -46,7 +46,15 @@ const admin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_RO
 });
 
 const BUCKETS = ["avatars", "campaign-banners"];
+/** Tamaño de página de `list()`. */
 const PAGE = 100;
+/**
+ * `remove()` acepta hasta 1.000 paths por llamada; 500 deja margen.
+ *
+ * Configurable solo para poder ejercitar el loop de lotes en una prueba sin
+ * tener que subir 500 archivos.
+ */
+const REMOVE_BATCH = Number(process.env.LACOMU_REMOVE_BATCH ?? 500);
 
 function abortar(motivo) {
   console.error(`\nABORTADO: ${motivo}`);
@@ -141,13 +149,23 @@ if (dryRun) {
 
 // 1) Archivos primero: después de borrar el usuario ya no se sabe qué
 //    carpeta era suya. Un error acá aborta, no se sigue.
+//
+//    Se manda en lotes: `remove()` acepta hasta 1.000 paths por llamada, y
+//    pasarse hace fallar la llamada entera. Con 500 hay margen y sigue
+//    siendo una sola llamada en el caso normal (nadie tiene 500 fotos).
 for (const bucket of BUCKETS) {
   const paths = archivos.filter((a) => a.bucket === bucket).map((a) => a.path);
   if (paths.length === 0) continue;
 
-  const { error } = await admin.storage.from(bucket).remove(paths);
-  if (error) {
-    abortar(`no se pudieron borrar archivos de ${bucket}: ${error.message}`);
+  for (let i = 0; i < paths.length; i += REMOVE_BATCH) {
+    const lote = paths.slice(i, i + REMOVE_BATCH);
+    const { error } = await admin.storage.from(bucket).remove(lote);
+    if (error) {
+      abortar(
+        `no se pudieron borrar archivos de ${bucket} ` +
+          `(lote ${i / REMOVE_BATCH + 1}, ${lote.length} archivo/s): ${error.message}`,
+      );
+    }
   }
   console.log(`borrados ${paths.length} archivo(s) de ${bucket}`);
 }
