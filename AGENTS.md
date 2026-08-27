@@ -58,19 +58,23 @@ Reglas de RLS mínimas:
 
 Cada persona tiene un handle y su espacio vive en la raíz:
 
--  — su perfil público con sus pedidos
--  — un pedido puntual (URL canónica)
--  — legacy, redirige 308 a la canónica. NO
-  borrar: esos links se compartieron antes de que existieran los handles.
+- `lacomu.ar/{handle}` — su perfil público con sus pedidos
+- `lacomu.ar/{handle}/{slug}` — un pedido puntual (URL canónica)
+- `lacomu.ar/campanas/{uuid}` — legacy, redirige 308 a la canónica. **No
+  borrar**: esos links se compartieron antes de que existieran los handles.
 
-El handle se genera del email al registrarse (trigger ) y
-se puede cambiar desde /perfil. El slug del pedido se genera del título una
-sola vez y NO se recalcula si el título cambia: romper un link ya
+El handle se genera del email al registrarse (trigger `handle_new_user`) y
+se puede cambiar desde `/perfil`. El slug del pedido se genera del título
+una sola vez y **no** se recalcula si el título cambia: romper un link ya
 compartido es peor que tener un slug desactualizado.
 
+La campaña se busca por handle + slug juntos, así `/otra-persona/mi-pedido`
+no resuelve y el link es verificable.
+
 **Al agregar una ruta estática nueva en la raíz**, sumar su nombre a la
-tabla . Si no, alguien puede tomarlo como handle y su
-perfil queda inalcanzable (Next da precedencia a la ruta estática).
+tabla `reserved_handles`. Si no, alguien puede tomarlo como handle y su
+perfil queda inalcanzable, porque Next le da precedencia a la ruta
+estática.
 
 ## UX
 
