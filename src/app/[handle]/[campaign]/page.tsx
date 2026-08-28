@@ -7,37 +7,13 @@ import { formatCurrency } from "@/lib/format";
 import { ProgressBar } from "@/components/progress-bar";
 import { DonateForm } from "./donate-form";
 
-/**
- * Mercado Pago devuelve al donante a esta página con ?ayuda=... (ver las
- * back_urls en createPreference). Sin esto, alguien que acaba de pagar
- * volvía a la página sin ninguna señal de que su pago se registró.
- *
- * Ojo: "éxito" acá significa que MP dijo que salió bien, no que ya lo
- * confirmamos nosotros — la confirmación real la hace el webhook y puede
- * tardar. El copy lo refleja en vez de prometer algo que todavía no pasó.
- */
-const AYUDA_MENSAJES = {
-  exito: {
-    tone: "bg-success/15 text-success",
-    text: "¡Gracias! Tu ayuda se registró. Puede tardar un momento en aparecer en el total.",
-  },
-  pendiente: {
-    tone: "bg-warning/15 text-warning",
-    text: "Tu pago quedó pendiente de acreditación. Cuando Mercado Pago lo confirme, se va a sumar acá.",
-  },
-  error: {
-    tone: "bg-error/15 text-error",
-    text: "El pago no se pudo completar. No se te cobró nada — podés intentar de nuevo.",
-  },
-} as const;
-
 export default async function CampaignDetailPage({
   params,
   searchParams,
 }: PageProps<"/[handle]/[campaign]">) {
   const { handle, campaign: campaignSlug } = await params;
   const query = await searchParams;
-  const { ayuda } = query;
+  const returnedFromPayment = query.pago === "1";
   const campaign = await getCampaignByHandleAndSlug(handle, campaignSlug);
 
   if (!campaign) {
@@ -52,11 +28,6 @@ export default async function CampaignDetailPage({
     }
     notFound();
   }
-
-  const aviso =
-    typeof ayuda === "string" && ayuda in AYUDA_MENSAJES
-      ? AYUDA_MENSAJES[ayuda as keyof typeof AYUDA_MENSAJES]
-      : null;
 
   const toneClass = campaign.tone === "primary" ? "bg-primary" : "bg-secondary";
 
@@ -73,12 +44,9 @@ export default async function CampaignDetailPage({
 
       <main className="px-6 pb-24 md:px-16">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-8">
-          {aviso ? (
-            <p
-              role="status"
-              className={`rounded-sm px-4 py-3 text-sm font-medium ${aviso.tone}`}
-            >
-              {aviso.text}
+          {returnedFromPayment ? (
+            <p role="status" className="rounded-sm bg-background-card px-4 py-3 text-sm text-muted">
+              Volviste desde Mercado Pago. El estado final se confirma directamente con ellos.
             </p>
           ) : null}
 

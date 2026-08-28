@@ -137,7 +137,7 @@ console.log(`Handle:  ${perfil?.handle ?? "(sin handle)"}`);
 
 const { data: campanas, error: errCamp } = await admin
   .from("campaigns")
-  .select("slug, title")
+  .select("id, slug, title")
   .eq("owner_id", user.id);
 if (errCamp) abortar(`no se pudieron leer las campañas: ${errCamp.message}`);
 console.log(`Campañas: ${campanas?.length ?? 0}`);
@@ -155,6 +155,20 @@ for (const a of archivos) console.log(`  - ${a.bucket}/${a.path}`);
 if (dryRun) {
   console.log("\n--dry-run: no se borró nada.");
   process.exit(0);
+}
+
+// Este RPC bloquea el perfil, verifica pagos pendientes y marca la cuenta en
+// borrado en UNA transacción. Se hace DESPUÉS de dry-run: una simulación no
+// puede modificar una cuenta real.
+const { data: deletionStarted, error: errBeginDeletion } = await admin.rpc(
+  "begin_account_deletion",
+  { p_profile_id: user.id },
+);
+if (errBeginDeletion) abortar(`no se pudo preparar el borrado: ${errBeginDeletion.message}`);
+if (!deletionStarted) {
+  abortar(
+    "hay pagos pendientes de campañas de esta cuenta; esperar su conciliación evita borrar una campaña mientras MP todavía puede cobrarla.",
+  );
 }
 
 // 1) Archivos primero: después de borrar el usuario ya no se sabe qué

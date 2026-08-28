@@ -237,9 +237,8 @@ export async function createPreference({
    * Path canonico de la campana, ej. "/maxsdev/necesito-un-taladro".
    *
    * Antes se armaba /campanas/{id}, que hoy es una ruta legacy que
-   * redirige. Ese redirect perdia el ?ayuda=..., asi que el donante volvia
-   * de pagar y no veia ningun aviso. Apuntando directo a la canonica no
-   * hay redirect en el medio del flujo de pago.
+   * redirige. Apuntando directo a la canonica no hay redirect en el medio
+   * del flujo de pago.
    */
   campaignPath: string;
   /**
@@ -277,9 +276,11 @@ export async function createPreference({
       // porcentaje: MP espera el valor ya calculado.
       marketplace_fee: platformFeeFor(amount),
       back_urls: {
-        success: `${origin}${campaignPath}?ayuda=exito`,
-        pending: `${origin}${campaignPath}?ayuda=pendiente`,
-        failure: `${origin}${campaignPath}?ayuda=error`,
+        // El redirect no confirma una transferencia: solo mostramos un
+        // aviso neutral; la única fuente de verdad es el webhook.
+        success: `${origin}${campaignPath}?pago=1`,
+        pending: `${origin}${campaignPath}?pago=1`,
+        failure: `${origin}${campaignPath}?pago=1`,
       },
       auto_return: "approved",
       notification_url: `${origin}/api/mp/webhook`,

@@ -40,19 +40,6 @@ function parseDonationAmount(value: unknown) {
 const CLAIM_TTL_SECONDS = 2 * 60;
 
 /**
- * Cuántas retomas de claim vencido hacen falta antes de permitir crear la
- * preference con MP diciendo que no existe ninguna.
- *
- * Una sola retoma no alcanza para concluir que el request anterior murió:
- * puede estar esperando la respuesta de MP en este momento, y nuestra
- * búsqueda pudo haber corrido antes de que MP termine de crearla. Pero esa
- * ventana es de segundos. Con 2 retomas son ~4 minutos de MP reportando
- * consistentemente que no hay nada — y sin este techo la clave de
- * idempotencia quedaba trabada para siempre.
- */
-const CREATE_AFTER_TAKEOVERS = 2;
-
-/**
  * Toma el derecho exclusivo a crear la preference de esta contribución.
  *
  * Vive en la base (`claim_preference_creation`) y no acá porque el contador
@@ -80,7 +67,6 @@ async function claimPreferenceCreation(admin: AdminClient, contributionId: strin
     // Si había un claim previo, se lo quitamos a alguien que puede no
     // haber muerto — el TTL no lo prueba.
     tookOverStale: Boolean(fila.took_over),
-    takeovers: Number(fila.takeovers ?? 0),
   };
 }
 
@@ -108,6 +94,17 @@ async function releasePreferenceClaim(
     .eq("mp_preference_claim_token", token)
     .select("id");
   return Boolean(data && data.length > 0);
+}
+
+async function releaseConnectionCheckoutLock(
+  admin: AdminClient,
+  profileId: string,
+  token: string,
+) {
+  await admin.rpc("release_mp_connection_checkout_lock", {
+    p_profile_id: profileId,
+    p_claim_token: token,
+  });
 }
 
 async function waitForInitPoint(admin: AdminClient, contributionId: string) {
@@ -258,7 +255,7 @@ export async function POST(request: Request) {
 
   const { data: campaign } = await admin
     .from("campaigns")
-    .select("id, slug, title, owner_id, status, owner:profiles!owner_id(handle)")
+    .select("id, slug, title, owner_id, status, owner:profiles!owner_id(handle, deletion_started_at)")
     .eq("id", campaignId)
     .single();
 
@@ -269,7 +266,11 @@ export async function POST(request: Request) {
   // Las back_urls de MP apuntan a la URL canónica /{handle}/{slug}, no a
   // /campanas/{id}: esa es legacy y su redirect perdía el ?ayuda=..., así
   // que el donante volvía de pagar sin ver ningún aviso.
-  const ownerHandle = unwrapOne(campaign.owner)?.handle;
+  const owner = unwrapOne(campaign.owner);
+  const ownerHandle = owner?.handle;
+  if (owner?.deletion_started_at) {
+    return NextResponse.json({ error: "Esta campaña ya no acepta donaciones." }, { status: 410 });
+  }
   if (!ownerHandle || !campaign.slug) {
     console.error("MP create-preference: campaña sin handle o slug", {
       campaignId,
@@ -283,18 +284,19 @@ export async function POST(request: Request) {
   }
   const campaignPath = `/${ownerHandle}/${campaign.slug}`;
 
-  const { data: connection } = await admin
+  const { data: initialConnection } = await admin
     .from("mp_connections")
     .select("access_token, refresh_token, mp_user_id")
     .eq("profile_id", campaign.owner_id)
     .single();
 
-  if (!connection?.mp_user_id) {
+  if (!initialConnection?.mp_user_id) {
     return NextResponse.json(
       { error: "Esta persona todavía no vinculó Mercado Pago." },
       { status: 409 },
     );
   }
+  let connection: NonNullable<typeof initialConnection> = initialConnection;
 
   // Un doble click o un retry de red no debería cobrar dos veces. Si el
   // cliente manda la misma idempotencyKey de nuevo, reusamos la
@@ -452,26 +454,63 @@ export async function POST(request: Request) {
       );
     }
 
-    // Un claim vencido no demuestra que el request anterior haya muerto:
-    // puede seguir esperando la respuesta de MP. Si no aparece todavía una
-    // preference, crear otra podría ser cobrar dos veces.
-    //
-    // Pero esta espera NO puede ser infinita. Antes se devolvía 409 acá
-    // siempre, y como retomar el claim le reseteaba el TTL, cada reintento
-    // volvía a armar el reloj: la donación quedaba trabada para siempre y
-    // la persona tenía que empezar de nuevo con otra clave. Después de
-    // CREATE_AFTER_TAKEOVERS retomas con MP diciendo consistentemente que
-    // no hay ninguna preference, seguimos adelante.
-    if (!mpRespondio || claim.takeovers < CREATE_AFTER_TAKEOVERS) {
+    if (!mpRespondio) {
       return NextResponse.json(
         { error: "El pago anterior todavía se está verificando. Probá de nuevo en unos minutos." },
         { status: 409 },
       );
     }
 
-    console.warn(
-      "MP create-preference: se crea tras varias retomas sin preference en MP",
-      { contributionId: contribution.id, takeovers: claim.takeovers },
+    const { data: attempt, error: attemptError } = await admin
+      .from("contributions")
+      .select("mp_preference_attempted_at")
+      .eq("id", contribution.id)
+      .maybeSingle();
+    if (attemptError || attempt?.mp_preference_attempted_at) {
+      // El request anterior ya alcanzó MP. Aunque todavía no aparezca una
+      // preference, crear otra habilitaría un doble cobro si llega tarde.
+      return NextResponse.json(
+        { error: "Estamos verificando un intento anterior. Probá de nuevo más tarde." },
+        { status: 409 },
+      );
+    }
+  }
+
+  // El lease persistente serializa la foto de credenciales con OAuth: si la
+  // reconexión llegó primero, devuelve la conexión nueva; si llega después,
+  // su upsert se rechaza hasta que liberemos este checkout.
+  const { data: lockedConnection } = await admin.rpc("lock_mp_connection_for_checkout", {
+    p_profile_id: campaign.owner_id,
+    p_contribution_id: contribution.id,
+    p_claim_token: claim.token,
+  });
+  const freshConnection = Array.isArray(lockedConnection)
+    ? lockedConnection[0]
+    : lockedConnection;
+  if (!freshConnection?.mp_user_id) {
+    await releasePreferenceClaim(admin, contribution.id, claim.token);
+    return NextResponse.json(
+      { error: "La cuenta de Mercado Pago del beneficiario cambió. Probá de nuevo." },
+      { status: 503 },
+    );
+  }
+  connection = freshConnection;
+
+  // Escribimos antes del side effect externo. Un claim vencido sin esta
+  // marca puede retomarse; con ella solo se recupera/reconcilia, nunca se
+  // emite automáticamente un segundo checkout para la misma contribution.
+  const { data: markedAttempt } = await admin
+    .from("contributions")
+    .update({ mp_preference_attempted_at: new Date().toISOString() })
+    .eq("id", contribution.id)
+    .eq("mp_preference_claim_token", claim.token)
+    .is("mp_preference_attempted_at", null)
+    .select("id");
+  if (!markedAttempt || markedAttempt.length === 0) {
+    await releaseConnectionCheckoutLock(admin, campaign.owner_id, claim.token);
+    return NextResponse.json(
+      { error: "Estamos verificando un intento anterior. Probá de nuevo más tarde." },
+      { status: 409 },
     );
   }
 
@@ -530,6 +569,7 @@ export async function POST(request: Request) {
           // soltar el claim es seguro y el retry arranca limpio leyendo la
           // conexión nueva.
           await releasePreferenceClaim(admin, contribution.id, claim.token);
+          await releaseConnectionCheckoutLock(admin, campaign.owner_id, claim.token);
           console.warn("MP create-preference: la conexión de MP cambió durante el refresh", {
             contributionId: contribution.id,
             ownerId: campaign.owner_id,
@@ -603,6 +643,7 @@ export async function POST(request: Request) {
         contributionId: contribution.id,
         preferenceId: preference.id,
       });
+      await releaseConnectionCheckoutLock(admin, campaign.owner_id, claim.token);
       return NextResponse.json({ initPoint: preference.init_point });
     }
 
@@ -611,6 +652,7 @@ export async function POST(request: Request) {
         "MP create-preference: no se pudo guardar la preference tras 3 intentos",
         { contributionId: contribution.id, preferenceId: preference.id, lastUpdateError },
       );
+      await releaseConnectionCheckoutLock(admin, campaign.owner_id, claim.token);
       // No liberamos el claim acá a propósito: la preference SÍ existe en
       // MP, y un reintento inmediato la va a recuperar por
       // external_reference. Liberar invitaría a crear otra.
@@ -620,8 +662,10 @@ export async function POST(request: Request) {
       );
     }
 
+    await releaseConnectionCheckoutLock(admin, campaign.owner_id, claim.token);
     return NextResponse.json({ initPoint: preference.init_point });
   } catch (err) {
+    await releaseConnectionCheckoutLock(admin, campaign.owner_id, claim.token);
     // Un timeout, 5xx o rate limit no prueba que MP no haya creado la
     // preference. Conservamos el claim para que el retry la busque por
     // external_reference antes de permitir otra creación.
@@ -644,7 +688,7 @@ export async function POST(request: Request) {
     if (stillOurs) {
       await admin
         .from("contributions")
-        .update({ status: "failed" })
+        .update({ status: "failed", mp_preference_attempted_at: null })
         .eq("id", contribution.id)
         .eq("status", "pending");
     }

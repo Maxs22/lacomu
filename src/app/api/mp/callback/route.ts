@@ -52,17 +52,16 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const { error } = await admin.from("mp_connections").upsert({
-    profile_id: user.id,
-    mp_user_id: String(tokenData.user_id),
-    access_token: tokenData.access_token,
-    refresh_token: tokenData.refresh_token ?? null,
-    public_key: tokenData.public_key ?? null,
-    updated_at: new Date().toISOString(),
+  const { data: updated, error } = await admin.rpc("upsert_mp_connection_if_idle", {
+    p_profile_id: user.id,
+    p_mp_user_id: String(tokenData.user_id),
+    p_access_token: tokenData.access_token,
+    p_refresh_token: tokenData.refresh_token ?? null,
+    p_public_key: tokenData.public_key ?? null,
   });
 
   const response = NextResponse.redirect(
-    new URL(error ? "/perfil?mp=error" : "/perfil?mp=success", origin),
+    new URL(error || !updated ? "/perfil?mp=error" : "/perfil?mp=success", origin),
   );
   response.cookies.delete("mp_oauth_state");
   return response;

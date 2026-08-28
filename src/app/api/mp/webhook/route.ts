@@ -6,6 +6,8 @@ import {
   isValidWebhookSignature,
 } from "@/lib/mercadopago";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /**
  * Mercado Pago pega acá cuando cambia el estado de un pago.
  *
@@ -78,7 +80,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No se pudo consultar el pago." }, { status: 502 });
   }
 
-  if (!payment.external_reference) {
+  if (!payment.external_reference || !UUID_RE.test(payment.external_reference)) {
+    // Una referencia ajena o malformada no va a convertirse en UUID en la
+    // RPC. Es definitivo: pedir retries solo acumularía notificaciones.
+    console.error("MP webhook: external_reference inválido", {
+      paymentId: payment.id,
+      externalReference: payment.external_reference,
+    });
     return NextResponse.json({ ok: true });
   }
 
