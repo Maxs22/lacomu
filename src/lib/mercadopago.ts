@@ -15,6 +15,19 @@ import { platformFeeFor } from "@/lib/fees";
 const MP_API = "https://api.mercadopago.com";
 
 /**
+ * Cuánto vive un checkout antes de que Mercado Pago deje de aceptarlo.
+ *
+ * 24 h y no menos: alguien puede abrir el link, no tener la plata en el
+ * momento y pagar a la mañana siguiente. Ese caso es real y no hay que
+ * romperlo por apurar la limpieza.
+ *
+ * La expiración del lado de la base (expire_stale_pending_contributions)
+ * usa una ventana MÁS LARGA que esta a propósito: primero tiene que cerrar
+ * MP, después limpiamos nosotros.
+ */
+export const PREFERENCE_TTL_HOURS = 24;
+
+/**
  * El Host de un request no es de fiar para construir back_urls,
  * notification_url o redirect_uri — son URLs que determinan a dónde
  * vuelve el donante y a dónde le pega MP con la confirmación del pago.
@@ -284,6 +297,20 @@ export async function createPreference({
       },
       auto_return: "approved",
       notification_url: `${origin}/api/mp/webhook`,
+      // Un checkout que nadie completa no genera ningún pago, así que MP
+      // no manda webhook y la contribución quedaba 'pending' PARA SIEMPRE:
+      // basura en el panel del beneficiario y, peor, un borrado de cuenta
+      // bloqueado sin salida (begin_account_deletion rechaza si hay
+      // pendientes).
+      //
+      // Con esto MP deja de aceptar el pago pasadas 24 h. Es lo que hace
+      // seguro expirar la fila del lado nuestro: sin una ventana cerrada
+      // en MP, marcar algo como caído sería adivinar.
+      expires: true,
+      expiration_date_from: new Date().toISOString(),
+      expiration_date_to: new Date(
+        Date.now() + PREFERENCE_TTL_HOURS * 60 * 60 * 1000,
+      ).toISOString(),
     }),
   });
 
