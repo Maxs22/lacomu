@@ -30,6 +30,10 @@ export async function generateMetadata({
   return {
     title: nombre,
     description: `Pedidos de ayuda de ${nombre} en lacomu.`,
+    // El handle canónico es el actual: si alguien llega por uno viejo la
+    // página redirige, pero declararlo evita que un link con el handle
+    // anterior compita en el índice con el nuevo.
+    alternates: { canonical: `/${profile.handle}` },
     openGraph: {
       title: `${nombre} · lacomu`,
       description: `Pedidos de ayuda de ${nombre} en lacomu.`,

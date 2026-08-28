@@ -1,11 +1,69 @@
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
+import type { Metadata } from "next";
 import { getCampaignByHandleAndSlug } from "@/lib/campaigns";
 import { getCurrentHandleFor } from "@/lib/profiles";
 import { queryStringFrom } from "@/lib/query";
 import { formatCurrency } from "@/lib/format";
 import { ProgressBar } from "@/components/progress-bar";
 import { DonateForm } from "./donate-form";
+
+/** Largo cómodo para el snippet de Google y la preview de WhatsApp. */
+const RESUMEN_MAX = 155;
+
+function resumir(texto: string) {
+  const limpio = texto.replace(/\s+/g, " ").trim();
+  if (limpio.length <= RESUMEN_MAX) return limpio;
+  // Se corta en la última palabra entera: partir una palabra al medio se
+  // ve peor que perder dos caracteres.
+  const recortado = limpio.slice(0, RESUMEN_MAX);
+  const ultimoEspacio = recortado.lastIndexOf(" ");
+  return `${recortado.slice(0, ultimoEspacio > 80 ? ultimoEspacio : RESUMEN_MAX)}…`;
+}
+
+/**
+ * Sin esto, cada pedido se compartía con el título y la descripción de la
+ * home: en Google y en WhatsApp todos los pedidos se veían iguales, y quien
+ * recibía el link no sabía de qué se trataba antes de abrirlo. Es la página
+ * más compartida del sitio, así que era el peor lugar donde faltaba.
+ */
+export async function generateMetadata({
+  params,
+}: PageProps<"/[handle]/[campaign]">): Promise<Metadata> {
+  const { handle, campaign: campaignSlug } = await params;
+  const campaign = await getCampaignByHandleAndSlug(handle, campaignSlug);
+
+  // El notFound() real lo hace la página; acá solo evitamos anunciar como
+  // título bueno algo que va a terminar en 404.
+  if (!campaign) return { title: "No encontrado", robots: { index: false } };
+
+  const titulo = `${campaign.title} — ${campaign.ownerName}`;
+  const descripcion = resumir(campaign.description);
+  const canonical = `/${handle}/${campaignSlug}`;
+
+  return {
+    title: campaign.title,
+    description: descripcion,
+    alternates: { canonical },
+    openGraph: {
+      type: "article",
+      title: titulo,
+      description: descripcion,
+      url: canonical,
+      // La foto del pedido dice muchísimo más que el logo genérico. Si no
+      // hay, se cae al og.jpg del layout.
+      images: campaign.coverImageUrl
+        ? [{ url: campaign.coverImageUrl, alt: campaign.title }]
+        : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: titulo,
+      description: descripcion,
+      images: campaign.coverImageUrl ? [campaign.coverImageUrl] : undefined,
+    },
+  };
+}
 
 export default async function CampaignDetailPage({
   params,
