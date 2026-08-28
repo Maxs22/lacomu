@@ -41,7 +41,16 @@ export function PedirAyudaForm({ userId }: { userId: string }) {
     setSaving(false);
 
     if (insertError) {
-      setError("No pudimos guardar tu solicitud. Probá de nuevo.");
+      // P0001 es el código de un `raise exception` explícito y en esta tabla
+      // lo produce solo el trigger de límites de publicación: su mensaje
+      // está escrito para una persona ("ya tenés 3 pedidos abiertos"), así
+      // que se muestra tal cual. Decirle "probá de nuevo" a alguien que
+      // llegó a un tope lo manda a reintentar para siempre.
+      setError(
+        insertError.code === "P0001"
+          ? insertError.message
+          : "No pudimos guardar tu solicitud. Probá de nuevo.",
+      );
       return;
     }
 

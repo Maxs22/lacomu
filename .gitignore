@@ -45,3 +45,8 @@ next-env.d.ts
 # El example NO tiene valores reales, sirve de documentación de qué
 # variables hace falta configurar — ese sí se commitea.
 !.env.local.example
+
+# Scripts descartables de verificación contra la base real. Se escriben,
+# se corren, se borran. Uno se coló al repo en a40edd7 porque un `git add
+# -A` lo levantó; leen .env.local con el service role, no van al historial.
+scratch-*.mjs
